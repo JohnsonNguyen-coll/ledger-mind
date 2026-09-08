@@ -19,25 +19,31 @@ Standard treasury analysis requires a public wallet address and internet access.
 | `/assets`     | Recent native transfers from the selected report.                                                |
 | `/risk-audit` | Risk register and report-linked audit events.                                                    |
 | `/copilot`    | Report-specific questions and a treasury review draft.                                           |
+| `/premium`    | Dedicated x402 Premium Intelligence page with EIP-3009 micropayments, Top 10 Whale Wallet Tracking, AI Portfolio Strategy, and Liquidation Heatmaps. |
 | `/docs`       | Getting started, supported assets, metric methodology, API reference, and data limitations.      |
 
 The landing page introduces the product; analysis controls, report history, and workflow tools live in the dashboard. `/overview` remains available as an alias for the dashboard overview.
 
+### Live Deployments
+
+- **Vercel Frontend App:** [https://ledger-mind-kappa.vercel.app](https://ledger-mind-kappa.vercel.app)
+- **Railway Production Backend:** [https://ledger-mind-production.up.railway.app](https://ledger-mind-production.up.railway.app)
+
 ### What you can do
 
-- Read native and selected ERC-20 balances on Base or BNB Smart Chain.
+- Read native and selected ERC-20 balances on **Base, Ethereum, BNB Smart Chain, Arbitrum, Polygon, and Optimism**.
 - Review priced asset allocation and native inflow/outflow charts grouped by UTC date.
 - Inspect treasury value, stablecoin buffer, concentration, estimated burn, and runway.
 - Read rule-based risk explanations and data source statuses.
 - Load saved reports, view a treasury brief, and export Markdown.
-- Ask questions about the selected report and copy a draft for human review.
-- Inspect local audit evidence and the status of optional x402 paid data requests.
+- Ask questions about the selected report powered by zero-config **Groq Free API** (`llama-3.3-70b-versatile`) or configurable providers.
+- Inspect local audit evidence and unlock institutional telemetry on the dedicated `/premium` page.
 
 Workflow drafts do not execute trades or submit multisig transactions. The current dashboard Q&A endpoint answers from report fields using rule-based responses; configurable model providers serve the separate agent task runner.
 
 ## Quick start
 
-Requires **Node.js 24 or newer** and npm. Run these commands from the repository root:
+Requires **Node.js 22 or newer** and npm. Run these commands from the repository root:
 
 ```sh
 npm ci
@@ -54,8 +60,8 @@ No environment file is needed for the default configuration. To customize it, co
 ### Analyze a wallet
 
 1. Launch the dashboard and select **Run Analysis**.
-2. Enter a valid public EVM address and choose a supported network.
-3. Choose a 7, 30, or 90 day timeframe and run the standard analysis.
+2. Enter a valid public EVM address or choose from presets (`vitalik.eth`, `Binance Hot`, `Justin Sun`, `EF Treasury`, `Uniswap`, `Kraken 1`).
+3. Choose from 6 EVM networks (Base, Ethereum, BSC, Arbitrum, Polygon, Optimism) and select a 7, 30, or 90 day timeframe.
 4. Review the source statuses, allocation, native cash flow, and risk register.
 5. Open the brief, ask a report-specific question, or export a review draft.
 
@@ -63,10 +69,14 @@ Reports retain their observation time. Opening a saved report does not refresh i
 
 ## Networks and assets
 
-| Network         | Chain ID | Native asset | Tracked tokens    |
-| --------------- | -------- | ------------ | ----------------- |
-| Base            | `8453`   | ETH          | USDC, WETH, cbBTC |
-| BNB Smart Chain | `56`     | BNB          | USDT, USDC, WBNB  |
+| Network         | Chain ID | Native asset | Tracked tokens       |
+| --------------- | -------- | ------------ | -------------------- |
+| Base            | `8453`   | ETH          | USDC, WETH, cbBTC    |
+| Ethereum        | `1`      | ETH          | USDC, USDT, WETH, WBTC |
+| BNB Smart Chain | `56`     | BNB          | USDT, USDC, WBNB     |
+| Arbitrum One    | `42161`  | ETH          | USDC, USDT, ARB      |
+| Polygon         | `137`    | POL          | USDC, USDT, WMATIC   |
+| Optimism        | `10`     | ETH          | USDC, USDT, OP       |
 
 Base uses ETH as its native asset. Wrapped assets retain their own tickers in reports; WETH, WBNB, and cbBTC use their underlying asset’s market reference price.
 
@@ -125,7 +135,7 @@ x402 supports optional paid data access. The dashboard uses **RainbowKit, wagmi,
 
 Purchases are persisted by report, payer, and asset. Pending or uncertain submissions cannot be automatically charged again. Use **Refresh status** after a network interruption. A merchant-confirmed payment with failed data delivery retains its receipt. Supplements do not rewrite the original report snapshot. Daily limits apply per paying wallet in the browser flow.
 
-See [x402 documentation](backend/docs/X402.md) for both payment paths. [.env.live.example](.env.live.example) configures the separate Binance backend task runner with real payment mode on port `3001`; `npm run start:live` loads it explicitly. Model-provider charges are separate from paid-data budgets. The application remains a local, loopback-bound workspace; wallet connection is not a multi-user login system.
+See [x402 documentation](backend/docs/X402.md) for both payment paths. Configure standard environment values using [.env.example](.env.example). Model-provider charges are separate from paid-data budgets. The application remains a local, loopback-bound workspace; wallet connection is not a multi-user login system.
 
 ## API
 

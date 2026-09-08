@@ -49,9 +49,14 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     return BigInt(balance).toString();
   }
   app.get('/api/premium/purchases', (req,res) => {
-    const reportId = z.string().uuid().parse(req.query.reportId);
-    store.treasuryReport(reportId);
-    const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? ORDER BY createdAt DESC').all(reportId) as Row[];
+    const rawReportId = req.query.reportId ? String(req.query.reportId) : null;
+    if (rawReportId && rawReportId !== 'global') {
+      const reportId = z.string().uuid().parse(rawReportId);
+      store.treasuryReport(reportId);
+      const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? ORDER BY createdAt DESC').all(reportId) as Row[];
+      return res.json({ purchases: rows.map(publicRow) });
+    }
+    const rows = store.db.prepare('SELECT * FROM browser_purchases ORDER BY createdAt DESC').all() as Row[];
     res.json({ purchases: rows.map(publicRow) });
   });
   app.get('/api/premium/purchases/:id', (req,res) => {
@@ -61,11 +66,14 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
   });
   app.post('/api/premium/quote', async (req,res) => {
     auth(req); checkEnabled();
-    const input = z.object({reportId:z.string().uuid(),payer:address,symbol:symbolSchema}).strict().parse(req.body);
+    const input = z.object({reportId:z.string().optional(),payer:address,symbol:symbolSchema}).strict().parse(req.body);
+    const reportId = input.reportId && input.reportId !== 'global' ? z.string().uuid().parse(input.reportId) : 'global';
     const payer = input.payer.toLowerCase();
-    const report = store.treasuryReport(input.reportId).report as { assets: {symbol:string}[] };
-    if (!report.assets.some(a=>a.symbol.replace(/^W/,'').replace(/^cb/,'')===input.symbol)) throw new Error('ASSET_NOT_IN_REPORT');
-    const old = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(input.reportId,payer,input.symbol) as Row | undefined;
+    if (input.reportId && input.reportId !== 'global') {
+      const report = store.treasuryReport(input.reportId).report as { assets: {symbol:string}[] };
+      if (!report.assets.some(a=>a.symbol.replace(/^W/,'').replace(/^cb/,'')===input.symbol)) throw new Error('ASSET_NOT_IN_REPORT');
+    }
+    const old = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
     if (old && (old.status !== 'quoted' || (JSON.parse(old.quote) as Quote).expiresAt > Date.now())) return res.json(publicRow(old));
     withinBudget(payer);
     const balance = await walletBalance(payer);
@@ -85,16 +93,16 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     const accepted = challenge.accepts.find(a=>a.scheme==='exact' && a.network==='eip155:8453' && a.asset.toLowerCase()===CMC_USDC_BASE.toLowerCase() && a.payTo.toLowerCase()===CMC_RECIPIENT.toLowerCase() && a.amount===String(fee) && (!a.extra?.name || a.extra.name==='USD Coin') && (!a.extra?.version || a.extra.version==='2') && (!a.extra?.assetTransferMethod || a.extra.assetTransferMethod==='eip3009'));
     if (!accepted) throw new Error('MERCHANT_POLICY_MISMATCH');
     const now = Math.floor(Date.now()/1000);
-    const quote: Quote = {id:randomUUID(),reportId:input.reportId,payer,symbol:input.symbol,expiresAt:(now+Math.min(accepted.maxTimeoutSeconds,300))*1000,amount:String(fee),network:'eip155:8453',asset:CMC_USDC_BASE,payTo:CMC_RECIPIENT,resource:challenge.resource,accepted,balance,authorization:{from:payer,to:CMC_RECIPIENT,value:String(fee),validAfter:String(now-30),validBefore:String(now+Math.min(accepted.maxTimeoutSeconds,300)),nonce:'0x'+randomBytes(32).toString('hex')}};
+    const quote: Quote = {id:randomUUID(),reportId,payer,symbol:input.symbol,expiresAt:(now+Math.min(accepted.maxTimeoutSeconds,300))*1000,amount:String(fee),network:'eip155:8453',asset:CMC_USDC_BASE,payTo:CMC_RECIPIENT,resource:challenge.resource,accepted,balance,authorization:{from:payer,to:CMC_RECIPIENT,value:String(fee),validAfter:String(now-30),validBefore:String(now+Math.min(accepted.maxTimeoutSeconds,300)),nonce:'0x'+randomBytes(32).toString('hex')}};
     // Recheck after network awaits: concurrent quote requests share one purchase.
     const saved = store.transaction(()=>{
-      const current = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(input.reportId,payer,input.symbol) as Row | undefined;
+      const current = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
       if (current && (current.status!=='quoted' || (JSON.parse(current.quote) as Quote).expiresAt>Date.now())) return current;
       if (current) store.db.prepare('DELETE FROM browser_purchases WHERE id=? AND status=\'quoted\'').run(current.id);
-      store.db.prepare('INSERT INTO browser_purchases(id,reportId,payer,symbol,status,quote,createdAt) VALUES (?,?,?,?,?,?,?)').run(quote.id,input.reportId,payer,input.symbol,'quoted',JSON.stringify(quote),new Date().toISOString());
+      store.db.prepare('INSERT INTO browser_purchases(id,reportId,payer,symbol,status,quote,createdAt) VALUES (?,?,?,?,?,?,?)').run(quote.id,reportId,payer,input.symbol,'quoted',JSON.stringify(quote),new Date().toISOString());
       return read(quote.id)!;
     });
-    store.event(null,'premium.browser.quoted',{reportId:input.reportId,purchaseId:saved.id,amount:fee,payer});
+    store.event(null,'premium.browser.quoted',{reportId,purchaseId:saved.id,amount:fee,payer});
     res.json(publicRow(saved));
   });
   app.post('/api/premium/purchases/:id/pay', async (req,res) => {

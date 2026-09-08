@@ -14,7 +14,7 @@ Open `http://127.0.0.1:3000`.
 
 1. Open LedgerMind and show that the first screen is the treasury command center.
 2. Enter a real wallet address.
-3. Select Base or BNB Smart Chain.
+3. Select one of 6 EVM networks (Base, Ethereum, BNB Smart Chain, Arbitrum, Polygon, Optimism).
 4. Run Treasury Analysis.
 5. Point to verified data sources: RPC, Blockscout, and Binance prices.
 6. Explain the core metrics: treasury value, stable buffer, net flow, runway, and risk.

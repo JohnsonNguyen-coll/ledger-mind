@@ -44,31 +44,35 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
   const [error,setError] = useState('');
   const [now,setNow] = useState(Date.now());
   const locked = useRef(false);
-  const key = `${report?.reportId}:${account.address?.toLowerCase()}:${symbol}`;
+  const defaultSymbols = ['ETH', 'BTC', 'BNB', 'SOL'];
+  const reportSymbols = report?.assets.map(a=>a.symbol.replace(/^W/,'').replace(/^cb/, '')).filter(s=>['ETH','BTC','BNB','SOL'].includes(s)) || [];
+  const symbols = [...new Set([...reportSymbols, ...defaultSymbols])];
+  const effectiveSymbol = symbol || symbols[0] || 'ETH';
+  const key = `${report?.reportId || 'global'}:${account.address?.toLowerCase()}:${effectiveSymbol}`;
   const currentKey = useRef(key); currentKey.current = key;
-  const symbols = [...new Set(report?.assets.map(a=>a.symbol.replace(/^W/,'').replace(/^cb/, '')).filter(s=>['ETH','BTC','BNB','SOL'].includes(s)) || [])];
   useEffect(()=>{
     const listener = (event:Event) => setReport((event as CustomEvent<TreasuryResult>).detail);
     window.addEventListener('ledgermind:report',listener);
     const timer = window.setInterval(()=>setNow(Date.now()),1000);
     return ()=>{window.removeEventListener('ledgermind:report',listener);clearInterval(timer);};
   },[]);
-  useEffect(()=>{setSymbol(symbols[0] || '');setHistory([]);},[report?.reportId]);
+  useEffect(()=>{setSymbol(symbols[0] || 'ETH');setHistory([]);},[report?.reportId]);
   useEffect(()=>{setPurchase(null);setError('');},[key]);
   async function loadHistory() {
-    if (!report) return;
-    const id=report.reportId;
-    const result = await api<{purchases:Purchase[]}>(`/api/premium/purchases?reportId=${id}`,settings);
-    if(window.ledgerMindReport?.reportId === id) setHistory(result.purchases);
+    const url = report?.reportId ? `/api/premium/purchases?reportId=${report.reportId}` : '/api/premium/purchases';
+    const result = await api<{purchases:Purchase[]}>(url,settings);
+    setHistory(result.purchases);
   }
   useEffect(()=>{
-    if (!report) return;
     let active=true;
-    const refresh=()=>api<{purchases:Purchase[]}>(`/api/premium/purchases?reportId=${report.reportId}`,settings).then(result=>{if(active)setHistory(result.purchases);}).catch(()=>{if(active)setError('Premium history could not be loaded. Use Refresh status before making another purchase.');});
+    const refresh=()=>{
+      const url = report?.reportId ? `/api/premium/purchases?reportId=${report.reportId}` : '/api/premium/purchases';
+      return api<{purchases:Purchase[]}>(url,settings).then(result=>{if(active)setHistory(result.purchases);}).catch(()=>{if(active)setError('Premium history could not be loaded.');});
+    };
     void refresh(); const timer=window.setInterval(()=>void refresh(),4000);
     return ()=>{active=false;clearInterval(timer);};
   },[report?.reportId]);
-  const existing = history.find(p=>p.payer.toLowerCase()===account.address?.toLowerCase() && p.symbol===symbol);
+  const existing = history.find(p=>p.payer.toLowerCase()===account.address?.toLowerCase() && p.symbol===effectiveSymbol);
   const selected = (existing && existing.status!=='quoted') ? existing : purchase || existing || null;
   const expired = !selected || selected.quote.expiresAt<=now;
   const action = async (label:string, fn:()=>Promise<void>) => {
@@ -79,11 +83,11 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
     }finally{locked.current=false;setBusy('');}
   };
   const getQuote = () => action('Checking balance and merchant quote…',async()=>{
-    if(!report || !account.address || !symbol)return;
+    if(!account.address || !effectiveSymbol)return;
     const snapshot=key;
     if(account.chainId!==8453)await switchChainAsync({chainId:8453});
     if(currentKey.current!==snapshot)return;
-    const response=await api<Purchase>('/api/premium/quote',settings,{reportId:report.reportId,payer:account.address,symbol});
+    const response=await api<Purchase>('/api/premium/quote',settings,{...(report?.reportId ? {reportId:report.reportId} : {}),payer:account.address,symbol:effectiveSymbol});
     if(currentKey.current===snapshot)setPurchase(response);
     await loadHistory();
   });
@@ -110,15 +114,15 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
     }
   });
   return <section className="premium-panel panel" aria-label="Premium market data">
-    <div className="premium-heading"><div><p className="eyebrow">PREMIUM / COINMARKETCAP</p><h3>More context for your treasury.</h3><p>Buy a market snapshot with your own wallet. Your analyzed wallet can be different.</p></div><ConnectButton accountStatus="address" chainStatus="icon" showBalance={false}/></div>
-    <ol className="premium-steps"><li className={account.isConnected?'done':''}>01 Connect wallet</li><li className={selected?'done':''}>02 Review quote</li><li className={selected?.status==='settled'?'done':''}>03 Pay & receive</li></ol>
-    {!settings.browserPremiumEnabled ? <p>Browser payments are disabled by this server.</p> : !report ? <p className="premium-empty">Run an analysis or open a saved report to get premium data.</p> : <>
-      <div className="premium-controls"><label>Asset<select value={symbol} onChange={e=>setSymbol(e.target.value)} disabled={!!busy}>{symbols.map(s=><option key={s}>{s}</option>)}</select></label>
-        <button className="btn-solid-secondary" disabled={!account.isConnected || !symbol || !!busy || (!!selected && selected.status!=='quoted')} onClick={getQuote}>{account.chainId && account.chainId!==8453?'Switch to Base & get quote':'Get premium quote'}</button>
+    <div className="premium-heading"><div><p className="eyebrow">PREMIUM / COINMARKETCAP</p><h3>More context for your treasury.</h3><p>Buy a market snapshot with your own wallet. Your analyzed wallet can be different.</p></div><ConnectButton label="Connect Wallet" accountStatus="address" chainStatus="icon" showBalance={false}/></div>
+    <ol className="premium-steps"><li className={account.isConnected?'done':''}>01 Connect Wallet</li><li className={selected?'done':''}>02 Review quote</li><li className={selected?.status==='settled'?'done':''}>03 Pay & receive</li></ol>
+    {!settings.browserPremiumEnabled ? <p>Browser payments are disabled by this server.</p> : <>
+      <div className="premium-controls"><label>Asset<select className="custom-select" value={effectiveSymbol} onChange={e=>setSymbol(e.target.value)} disabled={!!busy}>{symbols.map(s=><option key={s}>{s}</option>)}</select></label>
+        <button className="btn-solid-secondary" disabled={!account.isConnected || !effectiveSymbol || !!busy || (!!selected && selected.status!=='quoted')} onClick={getQuote}>{account.chainId && account.chainId!==8453?'Switch to Base & get quote':'Get premium quote'}</button>
         <button className="btn-ghost-sm" disabled={!!busy} onClick={()=>action('Refreshing saved status…',async()=>{setPurchase(null);await loadHistory();})}>Refresh status</button>
       </div>
-      {!account.isConnected && <p className="chart-caption">Connect a wallet to review payment terms. Connecting does not authorize a payment.</p>}
-      {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{symbol} Top 10 Whale Wallet Address Tracking, Orderbook Depth ±2%, AI Rebalance Strategy & Liquidation Heatmap</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
+      {!account.isConnected && <p className="chart-caption">Connect Wallet to review payment terms. Connecting does not authorize a payment.</p>}
+      {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{effectiveSymbol} Top 10 Whale Wallet Address Tracking, Orderbook Depth ±2%, AI Rebalance Strategy & Liquidation Heatmap</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
       {selected && selected.status!=='quoted' && <PurchaseResult purchase={selected}/>}
       {history.filter(p=>p.status!=='quoted' && p.id!==selected?.id).map(p=><PurchaseResult key={p.id} purchase={p}/>)}
     </>}

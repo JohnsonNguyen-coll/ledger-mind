@@ -549,7 +549,7 @@ Run an analysis to generate a multisig-safe treasury review draft.</pre
         </div>
         <div class="modal-body">
           <form id="analysis-form" class="control-panel">
-            <label class="form-group">
+            <div class="form-group">
               <span class="form-label">Wallet Address</span>
               <div class="input-wrapper">
                 <input
@@ -604,10 +604,10 @@ Run an analysis to generate a multisig-safe treasury review draft.</pre
                   Kraken 1
                 </button>
               </div>
-            </label>
+            </div>
 
             <div class="form-row-2col">
-              <label class="form-group">
+              <div class="form-group">
                 <span class="form-label">Network</span>
                 <select id="chain-id" class="custom-select">
                   <option value="8453">Base Mainnet</option>
@@ -617,16 +617,16 @@ Run an analysis to generate a multisig-safe treasury review draft.</pre
                   <option value="137">Polygon Mainnet</option>
                   <option value="10">Optimism</option>
                 </select>
-              </label>
+              </div>
 
-              <label class="form-group">
+              <div class="form-group">
                 <span class="form-label">Timeframe</span>
                 <select id="timeframe-days" class="custom-select">
                   <option value="7">7 Days</option>
                   <option value="30" selected>30 Days</option>
                   <option value="90">90 Days</option>
                 </select>
-              </label>
+              </div>
             </div>
 
             <p class="chart-caption">Standard analysis is free. After the report loads, use Premium to connect your paying wallet and review a quote.</p><button id="run-analysis" type="submit" class="btn-solid-primary">
