@@ -20,6 +20,9 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
   app.use((req, res, next) => {
     const origin = req.header('Origin');
     if (origin) {
+      if (!/^(https?:\/\/)?(localhost|127\.0\.0\.1|.*\.railway\.app|.*\.vercel\.app)(:\d+)?$/i.test(origin)) {
+        return res.status(403).json({ error: 'ORIGIN_REJECTED' });
+      }
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

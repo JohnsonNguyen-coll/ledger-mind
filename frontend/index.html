@@ -184,74 +184,82 @@
     <main id="app-workspace" hidden>
       <!-- Multi-Tab Navigation Bar with clean data-route attributes -->
       <nav class="tab-navbar">
-        <button
-          type="button"
-          class="tab-btn active"
-          data-tab-target="tab-overview"
-          data-route="/dashboard"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+        <a class="nav-brand tab-brand" href="/" data-route="/" aria-label="LedgerMind home">
+          <img src="/assets/logo.svg" alt="" class="brand-logo" /><span>LedgerMind</span>
+        </a>
+        <div class="tab-group">
+          <button
+            type="button"
+            class="tab-btn active"
+            data-tab-target="tab-overview"
+            data-route="/dashboard"
           >
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          <span>Overview</span>
-        </button>
-        <button type="button" class="tab-btn" data-tab-target="tab-assets" data-route="/assets">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Overview</span>
+          </button>
+          <button type="button" class="tab-btn" data-tab-target="tab-assets" data-route="/assets">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+              <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+            </svg>
+            <span>Asset Intelligence</span>
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-tab-target="tab-risk-audit"
+            data-route="/risk-audit"
           >
-            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-            <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-          </svg>
-          <span>Asset Intelligence</span>
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          data-tab-target="tab-risk-audit"
-          data-route="/risk-audit"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-            ></path>
-          </svg>
-          <span>Risk & Audit</span>
-        </button>
-        <button type="button" class="tab-btn" data-tab-target="tab-copilot" data-route="/copilot">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          <span>AI Copilot & Workflow</span>
-        </button>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              ></path>
+            </svg>
+            <span>Risk & Audit</span>
+          </button>
+          <button type="button" class="tab-btn" data-tab-target="tab-copilot" data-route="/copilot">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>AI Copilot & Workflow</span>
+          </button>
+        </div>
+        <div class="tab-actions">
+          <a href="/docs" data-route="/docs" class="subtle-link">Documentation ↗</a>
+        </div>
       </nav>
 
       <div class="workspace-shell">

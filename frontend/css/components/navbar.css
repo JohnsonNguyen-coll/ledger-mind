@@ -61,12 +61,44 @@
 .tab-navbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 16px;
   background: var(--surface-solid);
   border-bottom: 1px solid var(--border-solid);
   padding: 0 24px;
   position: relative;
   z-index: 40;
+  height: 56px;
+}
+
+.tab-brand {
+  margin-right: 12px;
+  text-decoration: none;
+}
+
+.tab-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.subtle-link {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.subtle-link:hover {
+  color: var(--cyan);
 }
 
 .tab-btn {
