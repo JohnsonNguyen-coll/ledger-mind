@@ -5,5 +5,5 @@ import { cp, mkdir } from 'node:fs/promises';
 await mkdir('dist/frontend', { recursive: true });
 await cp('frontend', 'dist/frontend', {
   recursive: true,
-  filter: source => !source.endsWith('.ts'),
+  filter: source => !/\.tsx?$/.test(source),
 });

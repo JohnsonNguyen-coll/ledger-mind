@@ -19,6 +19,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     model: 'gpt-4.1-mini',
     bawCliJs: '',
     realEnabled: false,
+    browserPremiumEnabled: true,
+    walletConnectProjectId: '',
     ...overrides,
   };
 }

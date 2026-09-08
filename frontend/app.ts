@@ -21,6 +21,8 @@ let currentReportId: string | null = null;
 
 function renderResult(result: TreasuryResult) {
   currentReportId = result.reportId;
+  (window as Window & { ledgerMindReport?: TreasuryResult }).ledgerMindReport = result;
+  window.dispatchEvent(new CustomEvent('ledgermind:report', { detail: result }));
 
   // Show Workspace and close analysis modal if open
   navigateTo('/dashboard');

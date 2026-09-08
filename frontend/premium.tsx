@@ -1,0 +1,145 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { ConnectButton, RainbowKitProvider, darkTheme, getDefaultConfig, connectorsForWallets } from '@rainbow-me/rainbowkit';
+import { injectedWallet, metaMaskWallet, rainbowWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+import { WagmiProvider, createConfig, http, useAccount, useSwitchChain, useSignTypedData } from 'wagmi';
+import { getAccount } from 'wagmi/actions';
+import { base } from 'wagmi/chains';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Hex } from 'viem';
+import '@rainbow-me/rainbowkit/styles.css';
+import './css/premium.css';
+import type { TreasuryResult } from './src/types/treasury.js';
+
+type Settings = {csrfToken:string;browserPremiumEnabled:boolean;walletConnectProjectId:string};
+type Purchase = {id:string;reportId:string;payer:string;symbol:string;status:string;quote:{expiresAt:number;amount:string;payTo:string;asset:string;network:string;balance:string;authorization:{from:string;to:string;value:string;validAfter:string;validBefore:string;nonce:string}};result:null|{receipt?:{transaction:string;network:string;payer:string};data?:{source:string;observedAt:string;metrics:Record<string,number|string>};error?:string}};
+declare global { interface Window { ledgerMindReport?: TreasuryResult } }
+const messages: Record<string,string> = {
+  INSUFFICIENT_USDC_ON_BASE:'Your paying wallet needs at least 0.01 USDC on Base.',
+  SMART_WALLET_NOT_SUPPORTED_USE_EOA:'This payment currently supports standard externally owned wallets. Use an EOA wallet for this purchase.',
+  QUOTE_EXPIRED:'This quote has expired. Request a new quote before signing.',
+  MERCHANT_POLICY_MISMATCH:'The merchant price or payment terms changed. No payment was submitted.',
+  MERCHANT_QUOTE_UNAVAILABLE:'The premium provider is unavailable. No payment was submitted.',
+  DAILY_BUDGET_EXCEEDED:'This wallet has reached the configured daily premium limit.',
+  BROWSER_PREMIUM_DISABLED:'Browser premium payments are disabled in this server configuration.',
+  PAYMENT_EXCEEDS_LIMIT:'The quote exceeds the configured payment limit.',
+  BASE_RPC_UNAVAILABLE:'Base could not be reached. Retry the quote when the network is available.',
+};
+const short = (s:string) => `${s.slice(0,6)}…${s.slice(-4)}`;
+async function api<T>(path:string, settings:Settings, body?:unknown):Promise<T> {
+  const response = await fetch(path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-LedgerMind-Token':settings.csrfToken},...(body?{body:JSON.stringify(body)}:{})});
+  const result = await response.json();
+  if (!response.ok) throw new Error(messages[result.error] || result.error || 'Request failed. Please retry.');
+  return result;
+}
+function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof createConfig>}) {
+  const account = useAccount();
+  const {switchChainAsync} = useSwitchChain();
+  const {signTypedDataAsync} = useSignTypedData();
+  const [report,setReport] = useState<TreasuryResult|undefined>(window.ledgerMindReport);
+  const [symbol,setSymbol] = useState('');
+  const [purchase,setPurchase] = useState<Purchase|null>(null);
+  const [history,setHistory] = useState<Purchase[]>([]);
+  const [busy,setBusy] = useState('');
+  const [error,setError] = useState('');
+  const [now,setNow] = useState(Date.now());
+  const locked = useRef(false);
+  const key = `${report?.reportId}:${account.address?.toLowerCase()}:${symbol}`;
+  const currentKey = useRef(key); currentKey.current = key;
+  const symbols = [...new Set(report?.assets.map(a=>a.symbol.replace(/^W/,'').replace(/^cb/, '')).filter(s=>['ETH','BTC','BNB','SOL'].includes(s)) || [])];
+  useEffect(()=>{
+    const listener = (event:Event) => setReport((event as CustomEvent<TreasuryResult>).detail);
+    window.addEventListener('ledgermind:report',listener);
+    const timer = window.setInterval(()=>setNow(Date.now()),1000);
+    return ()=>{window.removeEventListener('ledgermind:report',listener);clearInterval(timer);};
+  },[]);
+  useEffect(()=>{setSymbol(symbols[0] || '');setHistory([]);},[report?.reportId]);
+  useEffect(()=>{setPurchase(null);setError('');},[key]);
+  async function loadHistory() {
+    if (!report) return;
+    const id=report.reportId;
+    const result = await api<{purchases:Purchase[]}>(`/api/premium/purchases?reportId=${id}`,settings);
+    if(window.ledgerMindReport?.reportId === id) setHistory(result.purchases);
+  }
+  useEffect(()=>{
+    if (!report) return;
+    let active=true;
+    const refresh=()=>api<{purchases:Purchase[]}>(`/api/premium/purchases?reportId=${report.reportId}`,settings).then(result=>{if(active)setHistory(result.purchases);}).catch(()=>{if(active)setError('Premium history could not be loaded. Use Refresh status before making another purchase.');});
+    void refresh(); const timer=window.setInterval(()=>void refresh(),4000);
+    return ()=>{active=false;clearInterval(timer);};
+  },[report?.reportId]);
+  const existing = history.find(p=>p.payer.toLowerCase()===account.address?.toLowerCase() && p.symbol===symbol);
+  const selected = (existing && existing.status!=='quoted') ? existing : purchase || existing || null;
+  const expired = !selected || selected.quote.expiresAt<=now;
+  const action = async (label:string, fn:()=>Promise<void>) => {
+    if(locked.current)return; locked.current=true;setBusy(label);setError('');
+    try{await fn();}catch(e){
+      const message = e instanceof Error ? e.message : 'Request failed';
+      setError(/reject|denied|4001/i.test(message)?'Request cancelled in your wallet. No new signature was submitted.':message);
+    }finally{locked.current=false;setBusy('');}
+  };
+  const getQuote = () => action('Checking balance and merchant quote…',async()=>{
+    if(!report || !account.address || !symbol)return;
+    const snapshot=key;
+    if(account.chainId!==8453)await switchChainAsync({chainId:8453});
+    if(currentKey.current!==snapshot)return;
+    const response=await api<Purchase>('/api/premium/quote',settings,{reportId:report.reportId,payer:account.address,symbol});
+    if(currentKey.current===snapshot)setPurchase(response);
+    await loadHistory();
+  });
+  const pay = () => action('Confirm the 0.01 USDC authorization in your wallet…',async()=>{
+    if(!selected || selected.status!=='quoted' || expired)throw new Error('Request a fresh quote first.');
+    const snapshot=key; const paying=getAccount(config);
+    if(paying.address?.toLowerCase()!==selected.payer || paying.chainId!==8453)throw new Error('Reconnect the quoted paying wallet on Base, then request a new quote.');
+    // Validate the server quote again before opening the wallet signature prompt.
+    if(selected.quote.amount!=='10000' || selected.quote.network!=='eip155:8453' || selected.quote.asset.toLowerCase()!=='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' || selected.quote.payTo.toLowerCase()!=='0x3c5f3a6ce224bb89d72f5eb4232ecc27f67b3eea')throw new Error('Unsupported payment terms.');
+    const a=selected.quote.authorization;
+    if(a.from.toLowerCase()!==selected.payer || a.to.toLowerCase()!==selected.quote.payTo.toLowerCase() || a.value!=='10000' || Number(a.validBefore)*1000!==selected.quote.expiresAt)throw new Error('Invalid authorization terms.');
+    const signature=await signTypedDataAsync({domain:{name:'USD Coin',version:'2',chainId:8453,verifyingContract:selected.quote.asset as Hex},types:{TransferWithAuthorization:[{name:'from',type:'address'},{name:'to',type:'address'},{name:'value',type:'uint256'},{name:'validAfter',type:'uint256'},{name:'validBefore',type:'uint256'},{name:'nonce',type:'bytes32'}]},primaryType:'TransferWithAuthorization',message:{from:a.from as Hex,to:a.to as Hex,value:BigInt(a.value),validAfter:BigInt(a.validAfter),validBefore:BigInt(a.validBefore),nonce:a.nonce as Hex}});
+    if(currentKey.current!==snapshot)throw new Error('Wallet or report changed. The signature was not submitted.');
+    setBusy('Payment submitted. Waiting for merchant settlement and data…');
+    // Persist the attempt ID before submission. Never store the spending signature.
+    sessionStorage.setItem('ledgermind:last-premium',selected.id);
+    try {
+      const response=await api<Purchase>(`/api/premium/purchases/${selected.id}/pay`,settings,{signature});
+      if(currentKey.current===snapshot)setPurchase(response);
+      await loadHistory();
+    } catch {
+      if(currentKey.current===snapshot)setPurchase({...selected,status:'unknown',result:{error:'Request interrupted. Refresh status to recover the recorded result. Do not sign another payment.'}});
+      throw new Error('The response was interrupted. Use Refresh status; do not pay again.');
+    }
+  });
+  return <section className="premium-panel panel" aria-label="Premium market data">
+    <div className="premium-heading"><div><p className="eyebrow">PREMIUM / COINMARKETCAP</p><h3>More context for your treasury.</h3><p>Buy a market snapshot with your own wallet. Your analyzed wallet can be different.</p></div><ConnectButton accountStatus="address" chainStatus="icon" showBalance={false}/></div>
+    <ol className="premium-steps"><li className={account.isConnected?'done':''}>01 Connect wallet</li><li className={selected?'done':''}>02 Review quote</li><li className={selected?.status==='settled'?'done':''}>03 Pay & receive</li></ol>
+    {!settings.browserPremiumEnabled ? <p>Browser payments are disabled by this server.</p> : !report ? <p className="premium-empty">Run an analysis or open a saved report to get premium data.</p> : <>
+      <div className="premium-controls"><label>Asset<select value={symbol} onChange={e=>setSymbol(e.target.value)} disabled={!!busy}>{symbols.map(s=><option key={s}>{s}</option>)}</select></label>
+        <button className="btn-solid-secondary" disabled={!account.isConnected || !symbol || !!busy || (!!selected && selected.status!=='quoted')} onClick={getQuote}>{account.chainId && account.chainId!==8453?'Switch to Base & get quote':'Get premium quote'}</button>
+        <button className="btn-ghost-sm" disabled={!!busy} onClick={()=>action('Refreshing saved status…',async()=>{setPurchase(null);await loadHistory();})}>Refresh status</button>
+      </div>
+      {!account.isConnected && <p className="chart-caption">Connect a wallet to review payment terms. Connecting does not authorize a payment.</p>}
+      {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{symbol} price, 24h change, volume and market cap when provided</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
+      {selected && selected.status!=='quoted' && <PurchaseResult purchase={selected}/>}
+      {history.filter(p=>p.status!=='quoted' && p.id!==selected?.id).map(p=><PurchaseResult key={p.id} purchase={p}/>)}
+    </>}
+    {busy && <p className="premium-status" role="status">{busy}</p>}{error && <p className="premium-error" role="alert">{error}</p>}
+    <p className="chart-caption">Standard EOA wallets supported. Payments use USDC on Base. {settings.walletConnectProjectId?'WalletConnect is available for compatible mobile wallets.':'Browser extension wallets are available; mobile QR connection requires a WalletConnect project ID.'}</p>
+  </section>;
+}
+function PurchaseResult({purchase:p}:{purchase:Purchase}) {
+  const data=p.result?.data; const receipt=p.result?.receipt;
+  const exportResult=()=>{const blob=new Blob([`# LedgerMind premium supplement\n\nReport: ${p.reportId}\nAsset: ${p.symbol}\nPayer: ${p.payer}\nStatus: ${p.status}\nTransaction: ${receipt?.transaction || 'Unconfirmed'}\n\n${Object.entries(data?.metrics||{}).map(([k,v])=>`- ${k}: ${v}`).join('\n')}\n\nObserved: ${data?.observedAt || 'Unavailable'}\n`],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`premium-${p.id}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+  return <article className="premium-result"><div className="section-head"><strong>{p.symbol} · {p.status==='settled'?'Payment confirmed':p.status==='submitting'?'Settlement pending':p.status==='paid_data_unavailable'?'Paid · Data unavailable':'Settlement unconfirmed'}</strong><small>Paid by {short(p.payer)}</small></div>
+    {(p.status==='unknown'||p.status==='paid_data_unavailable') && <p className="premium-error">{p.result?.error || 'Inspect your wallet before taking further action. Do not pay again.'}</p>}
+    {data && <><div className="premium-data-grid">{Object.entries(data.metrics).map(([k,v])=><div key={k}><small>{{priceUsd:'Price (USD)',change24hPct:'24h change (%)',volume24hUsd:'24h volume (USD)',marketCapUsd:'Market cap (USD)'}[k] || k}</small><strong>{typeof v==='number'?v.toLocaleString('en-US',{maximumFractionDigits:4}):v}</strong></div>)}</div><p className="chart-caption">{data.source} · Observed {new Date(data.observedAt).toLocaleString()} · Supplement to the original report snapshot</p></>}
+    {receipt && <a className="text-link" target="_blank" rel="noreferrer" href={`https://basescan.org/tx/${receipt.transaction}`}>View settlement on Base ↗</a>}
+    {data && <button className="btn-ghost-sm" onClick={exportResult}>Export premium supplement</button>}
+  </article>;
+}
+async function mount() {
+  const response=await fetch('/api/config');if(!response.ok)throw new Error('Wallet configuration unavailable');
+  const settings:Settings=await response.json();
+  const config = settings.walletConnectProjectId ? getDefaultConfig({appName:'LedgerMind',projectId:settings.walletConnectProjectId,chains:[base],wallets:[{groupName:'Connect your wallet',wallets:[injectedWallet,metaMaskWallet,rainbowWallet,walletConnectWallet]}],transports:{[base.id]:http('https://mainnet.base.org')}}) : createConfig({chains:[base],connectors:connectorsForWallets([{groupName:'Browser wallets',wallets:[injectedWallet]}],{appName:'LedgerMind',projectId:''}),transports:{[base.id]:http('https://mainnet.base.org')}});
+  createRoot(document.getElementById('premium-root')!).render(<WagmiProvider config={config}><QueryClientProvider client={new QueryClient()}><RainbowKitProvider modalSize="compact" theme={darkTheme({accentColor:'#8ae0c4',accentColorForeground:'#10241e',borderRadius:'small',fontStack:'system'})}><Premium settings={settings} config={config}/></RainbowKitProvider></QueryClientProvider></WagmiProvider>);
+}
+void mount().catch(()=>{document.getElementById('premium-root')!.textContent='Wallet tools could not load. Refresh the page to retry.';});

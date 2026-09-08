@@ -17,6 +17,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/wallet.css" />
     <script type="module" src="/app.js"></script>
   </head>
   <body>
@@ -390,6 +391,7 @@
           </div>
         </section>
 
+        <div id="premium-root"><p class="chart-caption">Loading wallet tools…</p></div>
         <section class="panel cashflow-panel">
           <div class="section-head">
             <div class="head-title">Native transfer cash flow</div>
@@ -570,23 +572,7 @@ Run an analysis to generate a multisig-safe treasury review draft.</pre
               </label>
             </div>
 
-            <label class="switch-row">
-              <input id="premium-data" type="checkbox" />
-              <div class="switch-content">
-                <strong>Enable Premium x402 Data</strong>
-                <small>Reported only when configured</small>
-              </div>
-            </label>
-
-            <label class="switch-row">
-              <input id="premium-approval" type="checkbox" />
-              <div class="switch-content">
-                <strong>Approve x402 Payment Spend</strong>
-                <small>Only signs in live Binance payment mode</small>
-              </div>
-            </label>
-
-            <button id="run-analysis" type="submit" class="btn-solid-primary">
+            <p class="chart-caption">Standard analysis is free. After the report loads, use Premium to connect your paying wallet and review a quote.</p><button id="run-analysis" type="submit" class="btn-solid-primary">
               <span>Execute Treasury Analysis</span>
             </button>
             <p id="form-error" class="error-banner" hidden></p>

@@ -55,7 +55,7 @@ No environment file is needed for the default configuration. To customize it, co
 
 1. Launch the dashboard and select **Run Analysis**.
 2. Enter a valid public EVM address and choose a supported network.
-3. Choose a 7, 30, or 90 day timeframe. Leave premium data disabled for standard analysis.
+3. Choose a 7, 30, or 90 day timeframe and run the standard analysis.
 4. Review the source statuses, allocation, native cash flow, and risk register.
 5. Open the brief, ask a report-specific question, or export a review draft.
 
@@ -110,9 +110,19 @@ Default configuration uses `AGENT_MODE=demo`, `MARKET_MODE=fixture`, and `PAYMEN
 | `BAW_CLI_JS`                                                 | Absolute path to the Binance Agentic Wallet CLI JavaScript entry.                                                          |
 | `MAX_PAYMENT_USD`, `DAILY_BUDGET_USD`, `MAX_TASK_BUDGET_USD` | Paid-data spending limits.                                                                                                 |
 
-x402 supports optional paid data access. Live payments require a configured Binance Agentic Wallet adapter, merchant policies, spending limits, and explicit payment approval. Selecting premium data alone is not payment authorization or proof of settlement.
+x402 supports optional paid data access. The dashboard uses **RainbowKit, wagmi, and viem** to connect a browser wallet and sign a one-time USDC authorization. This flow is independent of the Binance Agentic Wallet task runner and does not require a model key or backend wallet CLI.
 
-See [x402 documentation](backend/docs/X402.md) and [.env.live.example](.env.live.example) before configuring paid access. That example enables real payment mode and uses port `3001`. After configuring `.env.live` and building, `npm run start:live` loads it explicitly. Model-provider charges are separate from paid-data budgets.
+1. Run an analysis or load a saved report, then find the **Premium / CoinMarketCap** panel.
+2. Select **Connect Wallet** and choose an installed wallet. For mobile QR connections, set `WALLETCONNECT_PROJECT_ID` to a public project ID from the [Reown dashboard](https://dashboard.reown.com).
+3. Select a supported report asset and **Get premium quote**. Switch to Base when prompted. The backend checks USDC balance and the merchant’s payment requirements.
+4. Review the paying wallet, recipient, price, and expiry. Select **Confirm & pay 0.01 USDC** and approve the typed authorization in your wallet.
+5. The dashboard displays the merchant settlement receipt and market data, with a Base explorer link and Markdown supplement export. Reopening the report loads saved purchases.
+
+`BROWSER_PREMIUM_ENABLED=true` enables this flow; set it to `false` to disable browser payment submissions. Extension wallets work without a WalletConnect project ID. The currently supported signers are standard EOA wallets; smart contract wallets are rejected during preflight. The paying wallet can differ from the analyzed address.
+
+Purchases are persisted by report, payer, and asset. Pending or uncertain submissions cannot be automatically charged again. Use **Refresh status** after a network interruption. A merchant-confirmed payment with failed data delivery retains its receipt. Supplements do not rewrite the original report snapshot. Daily limits apply per paying wallet in the browser flow.
+
+See [x402 documentation](backend/docs/X402.md) for both payment paths. [.env.live.example](.env.live.example) configures the separate Binance backend task runner with real payment mode on port `3001`; `npm run start:live` loads it explicitly. Model-provider charges are separate from paid-data budgets. The application remains a local, loopback-bound workspace; wallet connection is not a multi-user login system.
 
 ## API
 
@@ -145,7 +155,7 @@ Replace the example address with the wallet you want to inspect. The API accepts
 
 ## Development
 
-The frontend uses TypeScript, native browser APIs, SVG, and modular CSS. The backend uses TypeScript, Express, Zod, and SQLite.
+The frontend uses TypeScript, native browser APIs, SVG, and modular CSS, with an isolated React/RainbowKit premium panel loaded when opening the dashboard. esbuild bundles the wallet UI into browser modules. The backend uses TypeScript, Express, Zod, viem signature verification, and SQLite.
 
 ```text
 frontend/

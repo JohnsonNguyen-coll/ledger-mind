@@ -10,6 +10,7 @@ import { AgentRunner, errorCode } from './agent/runner.js';
 import { databaseIdentity } from './instance.js';
 import { checkModel } from './agent/check-model.js';
 import { mismatchedTaskSymbol } from './agent/task-symbol.js';
+import { installBrowserPremium } from './payments/browser-premium.js';
 
 export function createApp(config: Config, store: Store, runner: AgentRunner, services: Service[]) {
   const app = express();
@@ -26,7 +27,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       return res.status(403).json({ error: 'ORIGIN_REJECTED' });
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://mainnet.base.org https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.reown.com; img-src 'self' data: https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
@@ -42,6 +43,8 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       agentMode: config.agentMode,
       marketMode: config.marketMode,
       paymentMode: config.paymentMode,
+      browserPremiumEnabled: config.browserPremiumEnabled,
+      walletConnectProjectId: config.walletConnectProjectId,
       maxTaskBudget: config.maxTaskBudget,
       maxPayment: config.maxPayment,
       dailyBudget: config.dailyBudget,
@@ -50,6 +53,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     }),
   );
   app.get('/api/overview', (_req, res) => res.json({ ...store.overview(), tasks: store.tasks() }));
+  installBrowserPremium(app, store, config, token);
 
   const erc20BalanceCall = (wallet: string) =>
     '0x70a08231' + wallet.toLowerCase().replace(/^0x/, '').padStart(64, '0');

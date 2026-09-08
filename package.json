@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "npm run build:frontend && tsx watch backend/src/index.ts",
-    "build:frontend": "tsc -p frontend/tsconfig.json && node backend/scripts/copy-web.mjs",
+    "build:frontend": "tsc -p frontend/tsconfig.json && node backend/scripts/copy-web.mjs && node backend/scripts/build-wallet.mjs",
     "build:backend": "tsc -p backend/tsconfig.json",
     "build": "npm run build:backend && npm run build:frontend",
     "start": "node dist/backend/src/index.js",
@@ -17,7 +17,7 @@
     "setup:openrouter": "tsx backend/scripts/setup-openrouter.ts",
     "start:live": "node --env-file=.env.live dist/backend/src/index.js",
     "check:live": "node --env-file=.env.live --import tsx backend/scripts/check-live.ts",
-    "test": "tsx --test backend/tests/core.test.ts backend/tests/integration.test.ts backend/tests/adapters.test.ts backend/tests/startup.test.ts backend/tests/cmc.test.ts backend/tests/live.test.ts backend/tests/openrouter.test.ts backend/tests/gemini.test.ts backend/tests/sol.test.ts backend/tests/search.test.ts",
+    "test": "tsx --test backend/tests/core.test.ts backend/tests/integration.test.ts backend/tests/adapters.test.ts backend/tests/startup.test.ts backend/tests/cmc.test.ts backend/tests/live.test.ts backend/tests/openrouter.test.ts backend/tests/gemini.test.ts backend/tests/sol.test.ts backend/tests/search.test.ts backend/tests/browser-premium.test.ts",
     "check": "npm run build && npm test",
     "demo": "tsx backend/scripts/demo.ts",
     "wallet:preview": "tsx backend/scripts/wallet-preview.ts",
@@ -29,16 +29,29 @@
     "record:demo": "tsx backend/scripts/record-demo-video.ts"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.102.8",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "viem": "^2.56.3",
+    "wagmi": "^2.19.5",
     "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "esbuild": "^0.28.2",
     "playwright-core": "^1.63.0",
     "prettier": "^3.6.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "axios": "^1.20.0",
+    "ws": "^8.21.0"
   }
 }

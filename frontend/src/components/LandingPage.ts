@@ -6,6 +6,9 @@ export function showView(view: 'landing' | 'workspace' | 'docs') {
   }))
     document.getElementById(id)!.hidden = name !== view;
   document.body.dataset.view = view;
+  if (view === 'workspace' && !document.getElementById('wallet-module')) {
+    const script = document.createElement('script'); script.id = 'wallet-module'; script.type = 'module'; script.src = '/wallet.js'; document.body.append(script);
+  }
   const launch = document.querySelector<HTMLElement>('[data-nav="workspace"]');
   if (launch)
     launch.innerHTML =

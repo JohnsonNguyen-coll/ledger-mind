@@ -28,6 +28,8 @@ const envSchema = z.object({
     .default('gemini-3.6-flash'),
   BAW_CLI_JS: z.string().default(''),
   REAL_PAYMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
+  BROWSER_PREMIUM_ENABLED: z.enum(['true', 'false']).default('true'),
+  WALLETCONNECT_PROJECT_ID: z.string().trim().regex(/^([a-fA-F0-9]{32})?$/).default(''),
 });
 export function readConfig(requireModelKey = true) {
   const e = envSchema.parse(process.env);
@@ -63,6 +65,8 @@ export function readConfig(requireModelKey = true) {
           : e.OPENAI_MODEL,
     bawCliJs: e.BAW_CLI_JS,
     realEnabled: e.REAL_PAYMENTS_ENABLED === 'true',
+    browserPremiumEnabled: e.BROWSER_PREMIUM_ENABLED === 'true',
+    walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID,
   };
 }
 export type Config = ReturnType<typeof readConfig>;

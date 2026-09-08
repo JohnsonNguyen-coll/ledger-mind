@@ -32,8 +32,8 @@ export function initControlPanel(onResult: (result: TreasuryResult) => void) {
         walletAddress: $<HTMLInputElement>('wallet-address').value.trim(),
         chainId: Number($<HTMLSelectElement>('chain-id').value),
         timeframeDays: Number($<HTMLSelectElement>('timeframe-days').value),
-        usePremiumData: $<HTMLInputElement>('premium-data').checked,
-        authorizePremiumPayment: $<HTMLInputElement>('premium-approval').checked,
+        usePremiumData: false,
+        authorizePremiumPayment: false,
       });
       onResult(result);
     } catch (err) {
