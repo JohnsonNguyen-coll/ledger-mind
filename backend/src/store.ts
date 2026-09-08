@@ -1,9 +1,17 @@
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { positive } from './money.js';
 import type { AuditEvent, Payment, Symbol, Task } from './types.js';
+
+const requireModule = createRequire(import.meta.url);
+let DatabaseSync: any;
+try {
+  DatabaseSync = requireModule('node:sqlite').DatabaseSync;
+} catch {
+  console.warn('[LedgerMind] node:sqlite module requires Node.js >= 22.5.0.');
+}
 
 export interface Limits {
   wallet: number;
@@ -12,16 +20,14 @@ export interface Limits {
 }
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 
-/** SQLite vừa giữ trạng thái vừa giữ sổ chi tiêu. Reserve và audit được ghi trong
- * CÙNG transaction trước khi chạm tới payment adapter. BEGIN IMMEDIATE ngăn hai
- * request cùng đọc một số dư cũ và cùng tiêu số tiền đó. */
 export class Store {
-  readonly db: DatabaseSync;
+  readonly db: any;
   constructor(
     path: string,
     readonly limits: Limits,
     readonly now = () => new Date(),
   ) {
+
     for (const amount of Object.values(limits)) {
       if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('INVALID_LIMIT');
     }
