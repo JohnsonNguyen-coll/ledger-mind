@@ -135,7 +135,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       {
         name: string;
         nativeSymbol: string;
-        rpc: string;
+        rpcs: string[];
         explorer: string;
         tokens: Array<{ symbol: string; address: string; decimals: number; stable: boolean }>;
       }
@@ -143,7 +143,12 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       1: {
         name: 'Ethereum Mainnet',
         nativeSymbol: 'ETH',
-        rpc: 'https://eth.llamarpc.com',
+        rpcs: [
+          'https://ethereum-rpc.publicnode.com',
+          'https://eth.llamarpc.com',
+          'https://rpc.ankr.com/eth',
+          'https://1rpc.io/eth',
+        ],
         explorer: `https://eth.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, stable: true },
@@ -155,7 +160,11 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       8453: {
         name: 'Base Mainnet',
         nativeSymbol: 'ETH',
-        rpc: 'https://mainnet.base.org',
+        rpcs: [
+          'https://mainnet.base.org',
+          'https://base-rpc.publicnode.com',
+          'https://1rpc.io/base',
+        ],
         explorer: `https://base.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6, stable: true },
@@ -166,7 +175,11 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       56: {
         name: 'BNB Smart Chain',
         nativeSymbol: 'BNB',
-        rpc: 'https://bsc-rpc.publicnode.com',
+        rpcs: [
+          'https://bsc-rpc.publicnode.com',
+          'https://binance.llamarpc.com',
+          'https://rpc.ankr.com/bsc',
+        ],
         explorer: `https://bsc.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, stable: true },
@@ -177,7 +190,11 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       42161: {
         name: 'Arbitrum One',
         nativeSymbol: 'ETH',
-        rpc: 'https://arb1.arbitrum.io/rpc',
+        rpcs: [
+          'https://arb1.arbitrum.io/rpc',
+          'https://arbitrum-one-rpc.publicnode.com',
+          'https://1rpc.io/arb',
+        ],
         explorer: `https://arbitrum.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6, stable: true },
@@ -188,7 +205,11 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       137: {
         name: 'Polygon Mainnet',
         nativeSymbol: 'POL',
-        rpc: 'https://polygon-bor-rpc.publicnode.com',
+        rpcs: [
+          'https://polygon-bor-rpc.publicnode.com',
+          'https://polygon-rpc.com',
+          'https://1rpc.io/matic',
+        ],
         explorer: `https://polygon.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDC', address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6, stable: true },
@@ -199,7 +220,11 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       10: {
         name: 'Optimism',
         nativeSymbol: 'ETH',
-        rpc: 'https://mainnet.optimism.io',
+        rpcs: [
+          'https://mainnet.optimism.io',
+          'https://optimism-rpc.publicnode.com',
+          'https://1rpc.io/op',
+        ],
         explorer: `https://optimism.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
         tokens: [
           { symbol: 'USDC', address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', decimals: 6, stable: true },
@@ -251,14 +276,28 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
           params: [{ to: token.address, data: erc20BalanceCall(input.walletAddress) }, 'latest'],
         })),
       ];
-      const r = await fetch(chain.rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(batch),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) throw new Error('RPC_HTTP_' + r.status);
-      const rows = z.array(z.object({ id: z.union([z.string(), z.number()]), result: z.string().optional() }).passthrough()).parse(await r.json());
+
+      let rows: Array<{ id: string | number; result?: string }> | null = null;
+      for (const rpcUrl of chain.rpcs) {
+        try {
+          const r = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(batch),
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!r.ok) continue;
+          const parsed = z.array(z.object({ id: z.union([z.string(), z.number()]), result: z.string().optional() }).passthrough()).parse(await r.json());
+          if (parsed && parsed.length > 0) {
+            rows = parsed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+      if (!rows) throw new Error('ALL_RPC_ENDPOINTS_FAILED');
+
       const nativeBalance = unitsToNumber(fromHex(rows.find((row) => row.id === 'native')?.result), 18);
       const nativePrice = prices.get(chain.nativeSymbol) ?? null;
       assets.push({
@@ -295,7 +334,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       const body = (await r.json()) as { items?: Array<any> };
       const cutoff = Date.now() - input.timeframeDays * 86_400_000;
       const nativePrice = prices.get(chain.nativeSymbol) ?? 0;
-      txs = (body.items ?? [])
+      const allTxs = (body.items ?? [])
         .flatMap((tx) => {
           const parsedTime = Date.parse(String(tx.timestamp ?? '').replace(/\.(\d{3})\d+Z$/, '.$1Z'));
           const hash = String(tx.hash ?? '');
@@ -315,8 +354,9 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
             valueUsd: amount * nativePrice,
             counterparty: direction === 'outflow' ? String(tx.to?.hash ?? '') : String(tx.from?.hash ?? ''),
           }];
-        })
-        .slice(0, 20);
+        });
+      const nonZeroTxs = allTxs.filter((t) => t.amount > 0);
+      txs = (nonZeroTxs.length > 0 ? nonZeroTxs : allTxs).slice(0, 20);
     } catch {
       transactionsUnavailable = true;
     }
