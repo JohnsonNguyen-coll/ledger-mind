@@ -19,8 +19,13 @@ export function renderSources(result: TreasuryResult) {
 export async function loadHistory(onSelectReport: (report: TreasuryResult) => void) {
   const host = $('history-list');
   let result;
-  try { result = await fetchReports(); }
-  catch { host.className = 'history-list empty-state'; host.textContent = 'Report history unavailable. Select Refresh to retry.'; return; }
+  try {
+    result = await fetchReports();
+  } catch {
+    host.className = 'history-list empty-state';
+    host.textContent = 'Report history unavailable. Select Refresh to retry.';
+    return;
+  }
   host.replaceChildren();
 
   if (!result.reports.length) {

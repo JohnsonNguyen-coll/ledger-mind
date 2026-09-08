@@ -10,7 +10,12 @@ export function handleRoute(path: string, pushState = true) {
   }
 
   closeAllModals();
-  document.title = normalizedPath === '/docs' ? 'Documentation · LedgerMind' : normalizedPath === '/' ? 'LedgerMind · Treasury intelligence, clearly.' : 'Dashboard · LedgerMind';
+  document.title =
+    normalizedPath === '/docs'
+      ? 'Documentation · LedgerMind'
+      : normalizedPath === '/'
+        ? 'LedgerMind · Treasury intelligence, clearly.'
+        : 'Dashboard · LedgerMind';
   switch (normalizedPath) {
     case '/':
       showLandingPage();
@@ -54,7 +59,8 @@ export function initRouter() {
 
   // Global Event Delegation for all route and action clicks
   document.addEventListener('click', (event) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
     const routeTarget = (event.target as HTMLElement).closest<HTMLElement>('[data-route]');
     if (routeTarget) {
       event.preventDefault();
@@ -84,4 +90,6 @@ export function initRouter() {
 
   // Initial routing on page load
   handleRoute(window.location.pathname, false);
+  if (window.location.hash)
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
 }

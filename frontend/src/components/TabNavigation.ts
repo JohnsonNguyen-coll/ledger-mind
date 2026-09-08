@@ -8,12 +8,16 @@ const tabRouteMap: Record<string, string> = {
 };
 
 export function switchTab(tabId: string) {
+  const flow = document.querySelector<HTMLElement>('.cashflow-panel');
+  if (flow) flow.hidden = tabId !== 'tab-overview';
   // Update Tab buttons active state
   document.querySelectorAll('[data-tab-target]').forEach((tabBtn) => {
     if ((tabBtn as HTMLElement).dataset.tabTarget === tabId) {
       tabBtn.classList.add('active');
+      tabBtn.setAttribute('aria-current', 'page');
     } else {
       tabBtn.classList.remove('active');
+      tabBtn.removeAttribute('aria-current');
     }
   });
 

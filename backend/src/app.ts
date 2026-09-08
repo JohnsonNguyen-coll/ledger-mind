@@ -602,24 +602,23 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     const now = Date.now();
     if (now - lastTickerFetch > 4000) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2500);
         const r = await fetch(
           'https://data-api.binance.vision/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT","BNBUSDT"]',
-          { signal: controller.signal },
+          { signal: AbortSignal.timeout(2500) },
         );
-        clearTimeout(timeout);
         if (r.ok) {
           const raw = (await r.json()) as Array<{
             symbol: string;
             lastPrice: string;
             priceChangePercent: string;
           }>;
-          cachedTickers = raw.map((item) => ({
+          const quotes = raw.map((item) => ({
             symbol: item.symbol.replace('USDT', ''),
             price: parseFloat(item.lastPrice),
             change: parseFloat(item.priceChangePercent),
-          }));
+          })).filter(item => ['BTC', 'ETH', 'BNB'].includes(item.symbol) && Number.isFinite(item.price) && item.price > 0 && Number.isFinite(item.change));
+          if (quotes.length !== 3) throw new Error('INCOMPLETE_TICKERS');
+          cachedTickers = quotes;
           lastTickerFetch = now;
         }
       } catch {

@@ -21,7 +21,7 @@ let currentReportId: string | null = null;
 
 function renderResult(result: TreasuryResult) {
   currentReportId = result.reportId;
-  
+
   // Show Workspace and close analysis modal if open
   navigateTo('/dashboard');
   closeModal('analysis-modal');
@@ -29,14 +29,19 @@ function renderResult(result: TreasuryResult) {
   renderMetrics(result);
   renderAllocation(result);
   renderCharts(result);
-  $('report-context').textContent = result.chain.name + ' · ' + result.walletAddress + ' · Observed ' + new Date(result.observedAt).toLocaleString();
+  $('report-context').textContent =
+    result.chain.name +
+    ' · ' +
+    result.walletAddress +
+    ' · Observed ' +
+    new Date(result.observedAt).toLocaleString();
   renderRisks(result);
   renderSources(result);
   renderBrief(result);
   renderWorkflow(result);
   renderTransactions(result);
   updateAuditState('Ready', result.walletAddress);
-  
+
   const statusElem = $('chat-status');
   if (statusElem) statusElem.textContent = 'Ready';
 
@@ -48,7 +53,6 @@ function boot() {
   // Initialize Visual Systems & Interactive Navigation
   initMarketing();
   initModalManager();
-
 
   initRouter();
 

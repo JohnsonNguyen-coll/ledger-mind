@@ -11,8 +11,12 @@ export function tokenIcon(symbol: string): string {
     BTC: '<circle cx="12" cy="12" r="11" fill="#f7931a"/><text x="12" y="17" text-anchor="middle" font-size="16" fill="white" font-family="Arial">₿</text>',
     USDC: '<circle cx="12" cy="12" r="11" fill="#2775ca"/><path d="M7 5a8 8 0 0 0 0 14m10-14a8 8 0 0 1 0 14" stroke="white" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="15" fill="white">$</text>',
     USDT: '<circle cx="12" cy="12" r="11" fill="#26a17b"/><path d="M6 6h12v3h-4v11h-4V9H6z" fill="white"/><ellipse cx="12" cy="11" rx="8" ry="2" fill="none" stroke="white"/>',
+    cbBTC:
+      '<circle cx="12" cy="12" r="11" fill="#1652f0"/><text x="12" y="17" text-anchor="middle" font-size="16" fill="white" font-family="Arial">₿</text>',
   };
-  return paths[base] ? `<svg class="token-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[base]}</svg>` : '<span class="token-icon token-generic" aria-hidden="true">◈</span>';
+  return paths[base]
+    ? `<svg class="token-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[base]}</svg>`
+    : '<span class="token-icon token-generic" aria-hidden="true">◈</span>';
 }
 
 async function refreshTickers() {
@@ -23,16 +27,25 @@ async function refreshTickers() {
     if (!response.ok) throw new Error('Unavailable');
     const data: unknown = await response.json();
     if (!Array.isArray(data)) throw new Error('Invalid data');
-    const rows = data.filter(item => ['BTC','ETH','BNB'].includes(item.symbol) && Number.isFinite(item.price) && item.price > 0 && Number.isFinite(item.change));
+    const rows = data.filter(
+      (item) =>
+        ['BTC', 'ETH', 'BNB'].includes(item.symbol) &&
+        Number.isFinite(item.price) &&
+        item.price > 0 &&
+        Number.isFinite(item.change),
+    );
     if (!rows.length) throw new Error('No quotes');
     host.replaceChildren();
     for (const item of rows) {
-      const row = document.createElement('div'); row.className = 'ticker-item';
+      const row = document.createElement('div');
+      row.className = 'ticker-item';
       row.innerHTML = `${tokenIcon(item.symbol)}<div><strong>${item.symbol}<small> / USDT</small></strong><span>${item.price.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} <em class="${item.change >= 0 ? 'positive' : 'negative'}">${item.change >= 0 ? '+' : ''}${item.change.toFixed(2)}%</em></span></div>`;
       host.append(row);
     }
     const observed = response.headers.get('X-Ticker-Observed-At');
-    status.textContent = observed ? `${response.headers.get('X-Ticker-Stale') === 'true' ? 'Cached' : 'Binance'} · ${new Date(observed).toLocaleTimeString()} · 24h change` : 'Timestamp unavailable · 24h change';
+    status.textContent = observed
+      ? `${response.headers.get('X-Ticker-Stale') === 'true' ? 'Cached' : 'Binance'} · ${new Date(observed).toLocaleTimeString()} · 24h change`
+      : 'Timestamp unavailable · 24h change';
   } catch {
     host.textContent = 'Market quotes are temporarily unavailable.';
     status.textContent = 'Binance · No verified quote';
@@ -40,7 +53,7 @@ async function refreshTickers() {
 }
 
 export function initMarketing() {
-  document.querySelectorAll<HTMLElement>('[data-icon]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => {
     el.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[el.dataset.icon!] || ''}</svg>`;
   });
   document.getElementById('docs-page')!.innerHTML = `
@@ -65,5 +78,7 @@ BAW_CLI_JS=/absolute/path/to/agentic-wallet/dist/index.js</code></pre><p>Enable 
 }</code></pre><p>Replace 0x… with a valid 42-character EVM address. The response includes assets, transactions, metrics, risks, dataSources, brief, workflowDraft, and report metadata.</p><div class="table-wrap"><table><thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead><tbody><tr><td>GET /api/reports</td><td>Saved report list</td></tr><tr><td>GET /api/reports/:id</td><td>Read one report</td></tr><tr><td>GET /api/reports/:id/markdown</td><td>Export report</td></tr><tr><td>GET /api/reports/:id/audit</td><td>Report audit events</td></tr><tr><td>POST /api/agent/ask</td><td>Ask with reportId and question</td></tr><tr><td>POST /api/workflows/draft</td><td>Retrieve a draft using reportId</td></tr><tr><td>GET /api/tickers</td><td>BTC, ETH, BNB quotes in USDT</td></tr></tbody></table></div></section>
     <section id="limitations"><h2>Read the evidence in context</h2><p>Explorer coverage may be partial or unavailable. The current report uses up to 20 returned native transfers within the chosen timeframe; it does not provide a complete ledger of ERC-20 transfers, internal calls, or protocol positions.</p><p>Missing prices and RPC failures can understate tracked value. Cash-flow, burn, and runway estimates are incomplete when transfer data is missing. Market snapshot prices are separate from the prices recorded in an existing report.</p><a class="btn-solid-primary" href="/dashboard" data-route="/dashboard">Open the dashboard ↗</a></section></article></div>`;
   void refreshTickers();
-  window.setInterval(() => { if (!document.hidden && document.body.dataset.view === 'landing') void refreshTickers(); }, 60000);
+  window.setInterval(() => {
+    if (!document.hidden && document.body.dataset.view === 'landing') void refreshTickers();
+  }, 60000);
 }
