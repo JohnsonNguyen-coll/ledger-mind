@@ -1,100 +1,186 @@
+<p align="center">
+  <img src="frontend/assets/logo.svg" alt="LedgerMind logo" width="72" />
+</p>
+
 # LedgerMind
 
-LedgerMind is an Agent OS treasury intelligence workflow for onchain teams. It reads real public chain data, Binance market prices, and local audit state to produce treasury metrics, risk signals, and human-approved workflow drafts.
+**Onchain evidence. Human decisions.**
 
-## Project Structure
+LedgerMind helps teams understand a public treasury wallet: what it holds, how concentrated it is, and what its recent native transfers reveal. It combines public-chain balances, market reference prices, explainable risk signals, and saved reports in a local web workspace.
 
-```text
-LedgerMind/
-  frontend/
-    index.html
-    app.ts
-    style.css
-    favicon.svg
+Standard treasury analysis requires a public wallet address and internet access. It does not require connecting a wallet, signing a transaction, or configuring a model API key.
 
-  backend/
-    src/
-    scripts/
-    tests/
-    docs/
+## Product experience
 
-  package.json
-  package-lock.json
-  README.md
-  .env.example
-  .env.live.example
+| Page          | Purpose                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `/`           | Landing page with product overview, illustrative allocation preview, and Binance market tickers. |
+| `/dashboard`  | Treasury workspace. Launch the app here to run an analysis and review a report.                  |
+| `/assets`     | Recent native transfers from the selected report.                                                |
+| `/risk-audit` | Risk register and report-linked audit events.                                                    |
+| `/copilot`    | Report-specific questions and a treasury review draft.                                           |
+| `/docs`       | Getting started, supported assets, metric methodology, API reference, and data limitations.      |
+
+The landing page introduces the product; analysis controls, report history, and workflow tools live in the dashboard. `/overview` remains available as an alias for the dashboard overview.
+
+### What you can do
+
+- Read native and selected ERC-20 balances on Base or BNB Smart Chain.
+- Review priced asset allocation and native inflow/outflow charts grouped by UTC date.
+- Inspect treasury value, stablecoin buffer, concentration, estimated burn, and runway.
+- Read rule-based risk explanations and data source statuses.
+- Load saved reports, view a treasury brief, and export Markdown.
+- Ask questions about the selected report and copy a draft for human review.
+- Inspect local audit evidence and the status of optional x402 paid data requests.
+
+Workflow drafts do not execute trades or submit multisig transactions. The current dashboard Q&A endpoint answers from report fields using rule-based responses; configurable model providers serve the separate agent task runner.
+
+## Quick start
+
+Requires **Node.js 24 or newer** and npm. Run these commands from the repository root:
+
+```sh
+npm ci
+npm run build
+npm start
 ```
 
-## What It Does
+Open [LedgerMind](http://127.0.0.1:3000), then select **Launch app**. The [documentation page](http://127.0.0.1:3000/docs) is available from the navbar.
 
-- Analyzes a public treasury wallet on Base or BNB Smart Chain.
-- Fetches native and selected ERC-20 balances through live RPC calls.
-- Fetches recent native transfers from Blockscout when available.
-- Prices tracked assets with Binance public market data.
-- Calculates treasury value, stablecoin buffer, net flow, burn estimate, runway, concentration, and risk score.
-- Drafts a multisig-safe treasury review proposal.
-- Saves report history locally with a report hash.
-- Answers treasury questions from the selected report.
-- Exports the full report as Markdown.
-- Shows report-linked audit events from the append-only audit chain.
-- Reports x402 premium data status without pretending a payment occurred.
+On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`.
 
-## x402 Positioning
+No environment file is needed for the default configuration. To customize it, copy [.env.example](.env.example) to `.env` and edit the relevant values. The default server port is `3000`; local mock services use ports `4101`–`4103`.
 
-LedgerMind keeps x402 as paid data access, not trading. The existing server still contains the Binance Agentic Wallet + x402 payment gateway, budget reservations, and SHA-256 audit ledger. Real payment mode is gated by configuration:
+### Analyze a wallet
 
-```dotenv
-PAYMENT_MODE=binance
-REAL_PAYMENTS_ENABLED=true
-BAW_CLI_JS=C:/absolute/path/to/@binance/agentic-wallet/dist/index.js
-```
+1. Launch the dashboard and select **Run Analysis**.
+2. Enter a valid public EVM address and choose a supported network.
+3. Choose a 7, 30, or 90 day timeframe. Leave premium data disabled for standard analysis.
+4. Review the source statuses, allocation, native cash flow, and risk register.
+5. Open the brief, ask a report-specific question, or export a review draft.
 
-If x402 is not configured, the UI says so. It does not show fake receipts or fake settlement links.
+Reports retain their observation time. Opening a saved report does not refresh its balances or prices; run a new analysis to obtain a new snapshot.
 
-## Quick Start
+## Networks and assets
 
-```powershell
-npm.cmd ci
-npm.cmd run build
-npm.cmd start
-```
+| Network         | Chain ID | Native asset | Tracked tokens    |
+| --------------- | -------- | ------------ | ----------------- |
+| Base            | `8453`   | ETH          | USDC, WETH, cbBTC |
+| BNB Smart Chain | `56`     | BNB          | USDT, USDC, WBNB  |
 
-Open `http://127.0.0.1:3000`.
+Base uses ETH as its native asset. Wrapped assets retain their own tickers in reports; WETH, WBNB, and cbBTC use their underlying asset’s market reference price.
 
-## Demo Flow
+## Data and methodology
 
-1. Enter a real treasury wallet.
-2. Select Base or BNB Smart Chain.
-3. Run Treasury Analysis.
-4. Show live RPC balances, market pricing, source statuses, risk register, and workflow draft.
-5. Explain that premium x402 data can be enabled through Binance Agentic Wallet configuration and is audited under spending caps.
+| Source                     | Use                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| Public RPC                 | Native balances and configured ERC-20 `balanceOf` calls.                         |
+| Blockscout                 | Recent native transfer sample, when available.                                   |
+| Binance public market data | Non-stable asset reference prices and BTC/ETH/BNB market tickers quoted in USDT. |
+| Local SQLite store         | Saved reports, task state, payment budget records, and audit events.             |
 
-## Main API
+- **Treasury value:** sum of tracked balances multiplied by available reference prices. Unpriced assets are excluded from the priced allocation chart.
+- **Stablecoin buffer:** tracked USDC and USDT balances valued using a fixed $1 assumption. This is not a live depeg check.
+- **Net native flow:** sampled native inflows minus sampled native outflows, valued at the analysis reference price.
+- **Monthly burn estimate:** sampled native outflow × 30 ÷ selected timeframe in days.
+- **Runway estimate:** stablecoin buffer ÷ monthly burn. Without observed outbound burn, runway cannot be estimated.
+- **Concentration:** largest tracked holding’s share of total tracked value. Risk signals also consider source availability, stablecoin coverage, and runway.
+
+### Coverage limits
+
+The analyzer uses up to **20 returned native transfers** within the selected timeframe. It does not reconstruct a complete transaction ledger, ERC-20 transfer history, internal calls, or DeFi positions. Flow and runway estimates inherit this sampling limit.
+
+USD values use market references and stablecoin assumptions, not historical execution prices. RPC failures, missing prices, and unavailable explorer data can make a report incomplete; review source statuses before interpreting the numbers.
+
+The landing allocation preview is explicitly illustrative. Market tickers use fetched quotes with observation metadata; cached quotes are labeled and unavailable quotes are not replaced with invented prices. They are independent of prices in saved reports.
+
+The local SHA-256 audit chain can detect modifications against a trusted checkpoint. It is not external notarization.
+
+## Configuration and optional paid data
+
+Default configuration uses `AGENT_MODE=demo`, `MARKET_MODE=fixture`, and `PAYMENT_MODE=mock` for the agent task system. The treasury analyzer and landing tickers still call public RPC, explorer, and Binance endpoints directly; these defaults do not make treasury analysis an offline fixture.
+
+| Setting                                                      | Purpose                                                                                                                    |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                                       | Web server port; defaults to `3000`.                                                                                       |
+| `DATABASE_PATH`                                              | SQLite file; defaults to `./data/alphamesh.sqlite`. The filename is retained for compatibility.                            |
+| `AGENT_MODE`                                                 | Task runner provider: `demo`, `openai`, `openrouter`, or `gemini`. Non-demo providers require their corresponding API key. |
+| `PAYMENT_MODE`                                               | `mock` or `binance` payment adapter.                                                                                       |
+| `REAL_PAYMENTS_ENABLED`                                      | Explicit gate for real payments; defaults to `false`.                                                                      |
+| `BAW_CLI_JS`                                                 | Absolute path to the Binance Agentic Wallet CLI JavaScript entry.                                                          |
+| `MAX_PAYMENT_USD`, `DAILY_BUDGET_USD`, `MAX_TASK_BUDGET_USD` | Paid-data spending limits.                                                                                                 |
+
+x402 supports optional paid data access. Live payments require a configured Binance Agentic Wallet adapter, merchant policies, spending limits, and explicit payment approval. Selecting premium data alone is not payment authorization or proof of settlement.
+
+See [x402 documentation](backend/docs/X402.md) and [.env.live.example](.env.live.example) before configuring paid access. That example enables real payment mode and uses port `3001`. After configuring `.env.live` and building, `npm run start:live` loads it explicitly. Model-provider charges are separate from paid-data budgets.
+
+## API
+
+### Create a treasury report
 
 `POST /api/treasury/analyze`
 
 ```json
 {
-  "walletAddress": "0x...",
+  "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
   "chainId": 8453,
   "timeframeDays": 30,
-  "usePremiumData": true
+  "usePremiumData": false,
+  "authorizePremiumPayment": false
 }
 ```
 
-The endpoint returns verified assets, recent transfers, treasury metrics, risk signals, data provenance, and a Markdown workflow draft.
+Replace the example address with the wallet you want to inspect. The API accepts an integer timeframe from 7 to 90 days. Responses include report metadata, assets, transactions, metrics, risks, source statuses, a brief, a workflow draft, and premium-data status.
 
-Additional endpoints:
+| Endpoint                        | Purpose                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `GET /api/health`               | Server health.                                                                                   |
+| `GET /api/tickers`              | BTC, ETH, and BNB quotes in USDT; observation and stale status are returned in response headers. |
+| `GET /api/reports`              | List saved reports.                                                                              |
+| `GET /api/reports/:id`          | Load a saved report.                                                                             |
+| `GET /api/reports/:id/markdown` | Export Markdown.                                                                                 |
+| `GET /api/reports/:id/audit`    | Read report-linked audit evidence.                                                               |
+| `POST /api/agent/ask`           | Ask a question using `reportId` and `question`.                                                  |
+| `POST /api/workflows/draft`     | Retrieve a workflow draft using `reportId`.                                                      |
 
-- `GET /api/reports`
-- `GET /api/reports/:id`
-- `GET /api/reports/:id/markdown`
-- `GET /api/reports/:id/audit`
-- `POST /api/agent/ask`
-- `POST /api/workflows/draft`
+## Development
 
-## Docs
+The frontend uses TypeScript, native browser APIs, SVG, and modular CSS. The backend uses TypeScript, Express, Zod, and SQLite.
 
-- `backend/docs/ARCHITECTURE.md`
-- `backend/docs/DEMO.md`
-- `backend/docs/X402.md`
+```text
+frontend/
+  index.html              Page shells and dashboard markup
+  app.ts                  Application bootstrap and report rendering
+  src/components/         Routing, marketing/docs, charts, and dashboard panels
+  src/api/                Typed API client
+  src/types/              Treasury report types
+  css/                    Shared and responsive styles
+  assets/logo.svg         Folded-ledger brand mark
+  favicon.svg             Browser icon
+backend/
+  src/                    API, storage, agent runner, services, and payments
+  scripts/                Setup, diagnostics, and browser verification
+  tests/                  Automated backend tests
+  docs/                   Architecture and workflow notes
+dist/                     Generated build output
+data/                     Local runtime data and UI verification artifacts
+```
+
+| Command                  | Purpose                                                                   |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `npm run dev`            | Build the frontend once and watch the backend.                            |
+| `npm run build:frontend` | Compile browser code and copy HTML, CSS, and assets into `dist/frontend`. |
+| `npm run build`          | Build the backend and frontend.                                           |
+| `npm test`               | Run the backend test suite.                                               |
+| `npm run check`          | Build and run backend tests.                                              |
+
+After frontend edits, rerun `npm run build:frontend` and refresh the browser. `npm run dev` does not watch frontend files. Restart the server after rebuilding backend changes when using `npm start`.
+
+Browser verification is available with `node --import tsx backend/scripts/verify-ui.ts`. The script currently expects Chrome at `C:/Program Files/Google/Chrome/Application/chrome.exe`; adjust its executable path for another installation. It uses an isolated test database and mocked report/quote responses to check navigation, page reloads, chart rendering, dialogs, and mobile overflow. Screenshots are saved in `data/ui-check/`; they do not verify live provider availability.
+
+## Further reading
+
+- [In-app documentation](http://127.0.0.1:3000/docs)
+- [Architecture](backend/docs/ARCHITECTURE.md)
+- [Demo walkthrough](backend/docs/DEMO.md)
+- [x402 paid data](backend/docs/X402.md)
