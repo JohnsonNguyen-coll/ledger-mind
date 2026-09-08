@@ -116,7 +116,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     const input = z
       .object({
         walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-        chainId: z.union([z.literal(8453), z.literal(56)]).default(8453),
+        chainId: z.coerce.number().int().default(8453),
         timeframeDays: z.coerce.number().int().min(7).max(90).default(30),
         usePremiumData: z.boolean().default(false),
         authorizePremiumPayment: z.boolean().default(false),
@@ -124,30 +124,85 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       .strict()
       .parse(req.body);
 
-    const chain =
-      input.chainId === 56
-        ? {
-            name: 'BNB Smart Chain',
-            nativeSymbol: 'BNB',
-            rpc: 'https://bsc-rpc.publicnode.com',
-            explorer: `https://bsc.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
-            tokens: [
-              { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, stable: true },
-              { symbol: 'USDC', address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', decimals: 18, stable: true },
-              { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18, stable: false },
-            ],
-          }
-        : {
-            name: 'Base',
-            nativeSymbol: 'ETH',
-            rpc: 'https://mainnet.base.org',
-            explorer: `https://base.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
-            tokens: [
-              { symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6, stable: true },
-              { symbol: 'WETH', address: '0x4200000000000000000000000000000000000006', decimals: 18, stable: false },
-              { symbol: 'cbBTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8, stable: false },
-            ],
-          };
+    const CHAINS: Record<
+      number,
+      {
+        name: string;
+        nativeSymbol: string;
+        rpc: string;
+        explorer: string;
+        tokens: Array<{ symbol: string; address: string; decimals: number; stable: boolean }>;
+      }
+    > = {
+      1: {
+        name: 'Ethereum Mainnet',
+        nativeSymbol: 'ETH',
+        rpc: 'https://eth.llamarpc.com',
+        explorer: `https://eth.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, stable: true },
+          { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, stable: true },
+          { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', decimals: 8, stable: false },
+          { symbol: 'UNI', address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, stable: false },
+        ],
+      },
+      8453: {
+        name: 'Base Mainnet',
+        nativeSymbol: 'ETH',
+        rpc: 'https://mainnet.base.org',
+        explorer: `https://base.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6, stable: true },
+          { symbol: 'WETH', address: '0x4200000000000000000000000000000000000006', decimals: 18, stable: false },
+          { symbol: 'cbBTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8, stable: false },
+        ],
+      },
+      56: {
+        name: 'BNB Smart Chain',
+        nativeSymbol: 'BNB',
+        rpc: 'https://bsc-rpc.publicnode.com',
+        explorer: `https://bsc.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, stable: true },
+          { symbol: 'USDC', address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', decimals: 18, stable: true },
+          { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18, stable: false },
+        ],
+      },
+      42161: {
+        name: 'Arbitrum One',
+        nativeSymbol: 'ETH',
+        rpc: 'https://arb1.arbitrum.io/rpc',
+        explorer: `https://arbitrum.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6, stable: true },
+          { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6, stable: true },
+          { symbol: 'ARB', address: '0x912CE59144191C1204E64559FE8253a0e49E6548', decimals: 18, stable: false },
+        ],
+      },
+      137: {
+        name: 'Polygon Mainnet',
+        nativeSymbol: 'POL',
+        rpc: 'https://polygon-bor-rpc.publicnode.com',
+        explorer: `https://polygon.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDC', address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6, stable: true },
+          { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, stable: true },
+          { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals: 18, stable: false },
+        ],
+      },
+      10: {
+        name: 'Optimism',
+        nativeSymbol: 'ETH',
+        rpc: 'https://mainnet.optimism.io',
+        explorer: `https://optimism.blockscout.com/api/v2/addresses/${input.walletAddress}/transactions`,
+        tokens: [
+          { symbol: 'USDC', address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', decimals: 6, stable: true },
+          { symbol: 'OP', address: '0x4200000000000000000000000000000000000042', decimals: 18, stable: false },
+        ],
+      },
+    };
+
+    const chain = CHAINS[input.chainId] || CHAINS[8453]!;
 
     const symbols = Array.from(
       new Set([chain.nativeSymbol, ...chain.tokens.map((t) => t.symbol.replace(/^W/, '').replace(/^cb/, ''))]),

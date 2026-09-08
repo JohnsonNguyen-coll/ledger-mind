@@ -255,8 +255,9 @@
 
 .preset-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 6px 8px;
 }
 
 .preset-btn {
