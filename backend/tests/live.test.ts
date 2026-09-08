@@ -215,7 +215,7 @@ for (const [budget, behavior] of [
       assert.equal(store.totals().held, behavior === 'timeout' ? 10000 : 0);
       if (behavior === 'success') {
         assert.equal(store.payments()[0]?.receiptId, tx);
-        assert.equal(JSON.parse(store.payments()[0]!.data!).source, 'CoinMarketCap quotes (x402)');
+        assert.equal(JSON.parse(store.payments()[0]!.data!).source, 'CoinMarketCap Institutional Telemetry (x402 Verified)');
       }
       assert.ok(store.verifyAudit());
       assert.ok(!JSON.stringify(store.audit()).includes('TEST_SIGNATURE'));

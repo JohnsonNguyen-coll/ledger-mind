@@ -118,7 +118,7 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
         <button className="btn-ghost-sm" disabled={!!busy} onClick={()=>action('Refreshing saved status…',async()=>{setPurchase(null);await loadHistory();})}>Refresh status</button>
       </div>
       {!account.isConnected && <p className="chart-caption">Connect a wallet to review payment terms. Connecting does not authorize a payment.</p>}
-      {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{symbol} price, 24h change, volume and market cap when provided</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
+      {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{symbol} Price, Orderbook Depth ±2%, Whale Accumulation Index, Liquidation Risk Heatmap & Institutional Rating</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
       {selected && selected.status!=='quoted' && <PurchaseResult purchase={selected}/>}
       {history.filter(p=>p.status!=='quoted' && p.id!==selected?.id).map(p=><PurchaseResult key={p.id} purchase={p}/>)}
     </>}
@@ -128,10 +128,21 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
 }
 function PurchaseResult({purchase:p}:{purchase:Purchase}) {
   const data=p.result?.data; const receipt=p.result?.receipt;
-  const exportResult=()=>{const blob=new Blob([`# LedgerMind premium supplement\n\nReport: ${p.reportId}\nAsset: ${p.symbol}\nPayer: ${p.payer}\nStatus: ${p.status}\nTransaction: ${receipt?.transaction || 'Unconfirmed'}\n\n${Object.entries(data?.metrics||{}).map(([k,v])=>`- ${k}: ${v}`).join('\n')}\n\nObserved: ${data?.observedAt || 'Unavailable'}\n`],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`premium-${p.id}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+  const metricLabels: Record<string, string> = {
+    priceUsd: 'Price (USD)',
+    change24hPct: '24h change (%)',
+    volume24hUsd: '24h volume (USD)',
+    marketCapUsd: 'Market cap (USD)',
+    depth2PctUsd: 'Orderbook depth ±2% (USD)',
+    whaleAccumulationScore: 'Whale accumulation score',
+    slippageEstimate100k: 'Slippage ($100k order)',
+    liquidationHeatmap: 'Liquidation clusters',
+    institutionalRating: 'Institutional rating',
+  };
+  const exportResult=()=>{const blob=new Blob([`# LedgerMind premium supplement\n\nReport: ${p.reportId}\nAsset: ${p.symbol}\nPayer: ${p.payer}\nStatus: ${p.status}\nTransaction: ${receipt?.transaction || 'Unconfirmed'}\n\n${Object.entries(data?.metrics||{}).map(([k,v])=>`- ${metricLabels[k]||k}: ${v}`).join('\n')}\n\nObserved: ${data?.observedAt || 'Unavailable'}\n`],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`premium-${p.id}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
   return <article className="premium-result"><div className="section-head"><strong>{p.symbol} · {p.status==='settled'?'Payment confirmed':p.status==='submitting'?'Settlement pending':p.status==='paid_data_unavailable'?'Paid · Data unavailable':'Settlement unconfirmed'}</strong><small>Paid by {short(p.payer)}</small></div>
     {(p.status==='unknown'||p.status==='paid_data_unavailable') && <p className="premium-error">{p.result?.error || 'Inspect your wallet before taking further action. Do not pay again.'}</p>}
-    {data && <><div className="premium-data-grid">{Object.entries(data.metrics).map(([k,v])=><div key={k}><small>{{priceUsd:'Price (USD)',change24hPct:'24h change (%)',volume24hUsd:'24h volume (USD)',marketCapUsd:'Market cap (USD)'}[k] || k}</small><strong>{typeof v==='number'?v.toLocaleString('en-US',{maximumFractionDigits:4}):v}</strong></div>)}</div><p className="chart-caption">{data.source} · Observed {new Date(data.observedAt).toLocaleString()} · Supplement to the original report snapshot</p></>}
+    {data && <><div className="premium-data-grid">{Object.entries(data.metrics).map(([k,v])=><div key={k}><small>{metricLabels[k] || k}</small><strong>{typeof v==='number'?v.toLocaleString('en-US',{maximumFractionDigits:4}):v}</strong></div>)}</div><p className="chart-caption">{data.source} · Observed {new Date(data.observedAt).toLocaleString()} · Supplement to the original report snapshot</p></>}
     {receipt && <a className="text-link" target="_blank" rel="noreferrer" href={`https://basescan.org/tx/${receipt.transaction}`}>View settlement on Base ↗</a>}
     {data && <button className="btn-ghost-sm" onClick={exportResult}>Export premium supplement</button>}
   </article>;

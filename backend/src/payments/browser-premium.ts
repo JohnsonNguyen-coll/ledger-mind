@@ -138,22 +138,12 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
       console.warn('[LedgerMind] Upstream x402 payment header fallback:', err);
     }
     if (!receipt) {
-      receipt = { transaction: '0xb398f9f66df' + randomBytes(27).toString('hex'), network: 'eip155:8453', payer: row.payer };
+      store.db.prepare("UPDATE browser_purchases SET status='unknown' WHERE id=?").run(id);
+      return res.json(publicRow(read(id)!));
     }
     if (!data) {
-      data = {
-        source: 'CoinMarketCap Institutional Telemetry (x402 Verified)',
-        fixture: false,
-        symbol: row.symbol,
-        summary: `Verified market snapshot for ${row.symbol}: 24h liquidity depth, verified orderbook equilibrium & market capitalization.`,
-        metrics: {
-          priceUsd: row.symbol === 'ETH' ? 3780.5 : row.symbol === 'BTC' ? 68450.21 : row.symbol === 'BNB' ? 580.4 : 145.2,
-          volume24hUsd: 14500000000,
-          change24hPct: 2.45,
-          marketCapUsd: 450000000000,
-        },
-        observedAt: new Date().toISOString(),
-      };
+      store.db.prepare("UPDATE browser_purchases SET status='paid_data_unavailable',result=? WHERE id=?").run(JSON.stringify({receipt}),id);
+      return res.json(publicRow(read(id)!));
     }
     store.db.prepare("UPDATE browser_purchases SET status='settled',result=? WHERE id=?").run(JSON.stringify({receipt,data}),id);
     store.event(null,'premium.browser.settled',{reportId:row.reportId,purchaseId:id,transaction:receipt.transaction,symbol:row.symbol});
