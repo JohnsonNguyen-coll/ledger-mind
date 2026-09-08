@@ -65,45 +65,50 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     res.json(publicRow(row));
   });
   app.post('/api/premium/quote', async (req,res) => {
-    auth(req); checkEnabled();
-    const input = z.object({reportId:z.string().optional(),payer:address,symbol:symbolSchema}).strict().parse(req.body);
-    const reportId = input.reportId && input.reportId !== 'global' ? z.string().uuid().parse(input.reportId) : 'global';
-    const payer = input.payer.toLowerCase();
-    if (input.reportId && input.reportId !== 'global') {
-      const report = store.treasuryReport(input.reportId).report as { assets: {symbol:string}[] };
-      if (!report.assets.some(a=>a.symbol.replace(/^W/,'').replace(/^cb/,'')===input.symbol)) throw new Error('ASSET_NOT_IN_REPORT');
+    try {
+      auth(req); checkEnabled();
+      const input = z.object({reportId:z.string().optional(),payer:address,symbol:symbolSchema}).parse(req.body);
+      const reportId = input.reportId && input.reportId !== 'global' ? z.string().uuid().parse(input.reportId) : 'global';
+      const payer = input.payer.toLowerCase();
+      if (reportId !== 'global') {
+        const report = store.treasuryReport(reportId).report as { assets: {symbol:string}[] };
+        if (!report.assets.some(a=>a.symbol.replace(/^W/,'').replace(/^cb/,'')===input.symbol)) throw new Error('ASSET_NOT_IN_REPORT');
+      }
+      const old = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
+      if (old && (old.status !== 'quoted' || (JSON.parse(old.quote) as Quote).expiresAt > Date.now())) return res.json(publicRow(old));
+      withinBudget(payer);
+      const balance = await walletBalance(payer);
+      const resource = cmcResource(input.symbol);
+      const response = await request(resource);
+      if (response.status !== 402) { await response.body?.cancel(); throw new Error('MERCHANT_QUOTE_UNAVAILABLE'); }
+      const header = response.headers.get('PAYMENT-REQUIRED');
+      let raw: unknown;
+      if (header) {
+        await response.body?.cancel();
+        if (header.length > 24000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(header)) throw new Error('INVALID_PAYMENT_REQUIRED');
+        raw = JSON.parse(Buffer.from(header,'base64').toString());
+      } else raw = await boundedJson(response,24000);
+      const challenge = z.object({x402Version:z.literal(2),resource:z.object({url:z.string().url()}),accepts:z.array(z.object({scheme:z.string(),network:z.string(),asset:address,amount:z.string(),payTo:address,maxTimeoutSeconds:z.number().int().min(30).max(3600),extra:z.object({name:z.string().optional(),version:z.string().optional(),assetTransferMethod:z.string().optional()}).passthrough().optional()}).passthrough()).max(20)}).parse(raw);
+      const advertised = new URL(challenge.resource.url);
+      if (advertised.origin !== CMC_ORIGIN || advertised.pathname !== CMC_PATH || advertised.hash || advertised.username || advertised.password || (advertised.search && challenge.resource.url !== resource)) throw new Error('MERCHANT_RESOURCE_MISMATCH');
+      const accepted = challenge.accepts.find(a=>a.scheme==='exact' && a.network==='eip155:8453' && a.asset.toLowerCase()===CMC_USDC_BASE.toLowerCase() && a.payTo.toLowerCase()===CMC_RECIPIENT.toLowerCase() && a.amount===String(fee) && (!a.extra?.name || a.extra.name==='USD Coin') && (!a.extra?.version || a.extra.version==='2') && (!a.extra?.assetTransferMethod || a.extra.assetTransferMethod==='eip3009'));
+      if (!accepted) throw new Error('MERCHANT_POLICY_MISMATCH');
+      const now = Math.floor(Date.now()/1000);
+      const quote: Quote = {id:randomUUID(),reportId,payer,symbol:input.symbol,expiresAt:(now+Math.min(accepted.maxTimeoutSeconds,300))*1000,amount:String(fee),network:'eip155:8453',asset:CMC_USDC_BASE,payTo:CMC_RECIPIENT,resource:challenge.resource,accepted,balance,authorization:{from:payer,to:CMC_RECIPIENT,value:String(fee),validAfter:String(now-30),validBefore:String(now+Math.min(accepted.maxTimeoutSeconds,300)),nonce:'0x'+randomBytes(32).toString('hex')}};
+      // Recheck after network awaits: concurrent quote requests share one purchase.
+      const saved = store.transaction(()=>{
+        const current = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
+        if (current && (current.status!=='quoted' || (JSON.parse(current.quote) as Quote).expiresAt>Date.now())) return current;
+        if (current) store.db.prepare('DELETE FROM browser_purchases WHERE id=? AND status=\'quoted\'').run(current.id);
+        store.db.prepare('INSERT INTO browser_purchases(id,reportId,payer,symbol,status,quote,createdAt) VALUES (?,?,?,?,?,?,?)').run(quote.id,reportId,payer,input.symbol,'quoted',JSON.stringify(quote),new Date().toISOString());
+        return read(quote.id)!;
+      });
+      store.event(null,'premium.browser.quoted',{reportId,purchaseId:saved.id,amount:fee,payer});
+      res.json(publicRow(saved));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'INVALID_QUOTE_REQUEST';
+      res.status(400).json({ error: msg });
     }
-    const old = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
-    if (old && (old.status !== 'quoted' || (JSON.parse(old.quote) as Quote).expiresAt > Date.now())) return res.json(publicRow(old));
-    withinBudget(payer);
-    const balance = await walletBalance(payer);
-    const resource = cmcResource(input.symbol);
-    const response = await request(resource);
-    if (response.status !== 402) { await response.body?.cancel(); throw new Error('MERCHANT_QUOTE_UNAVAILABLE'); }
-    const header = response.headers.get('PAYMENT-REQUIRED');
-    let raw: unknown;
-    if (header) {
-      await response.body?.cancel();
-      if (header.length > 24000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(header)) throw new Error('INVALID_PAYMENT_REQUIRED');
-      raw = JSON.parse(Buffer.from(header,'base64').toString());
-    } else raw = await boundedJson(response,24000);
-    const challenge = z.object({x402Version:z.literal(2),resource:z.object({url:z.string().url()}),accepts:z.array(z.object({scheme:z.string(),network:z.string(),asset:address,amount:z.string(),payTo:address,maxTimeoutSeconds:z.number().int().min(30).max(3600),extra:z.object({name:z.string().optional(),version:z.string().optional(),assetTransferMethod:z.string().optional()}).passthrough().optional()}).passthrough()).max(20)}).parse(raw);
-    const advertised = new URL(challenge.resource.url);
-    if (advertised.origin !== CMC_ORIGIN || advertised.pathname !== CMC_PATH || advertised.hash || advertised.username || advertised.password || (advertised.search && challenge.resource.url !== resource)) throw new Error('MERCHANT_RESOURCE_MISMATCH');
-    const accepted = challenge.accepts.find(a=>a.scheme==='exact' && a.network==='eip155:8453' && a.asset.toLowerCase()===CMC_USDC_BASE.toLowerCase() && a.payTo.toLowerCase()===CMC_RECIPIENT.toLowerCase() && a.amount===String(fee) && (!a.extra?.name || a.extra.name==='USD Coin') && (!a.extra?.version || a.extra.version==='2') && (!a.extra?.assetTransferMethod || a.extra.assetTransferMethod==='eip3009'));
-    if (!accepted) throw new Error('MERCHANT_POLICY_MISMATCH');
-    const now = Math.floor(Date.now()/1000);
-    const quote: Quote = {id:randomUUID(),reportId,payer,symbol:input.symbol,expiresAt:(now+Math.min(accepted.maxTimeoutSeconds,300))*1000,amount:String(fee),network:'eip155:8453',asset:CMC_USDC_BASE,payTo:CMC_RECIPIENT,resource:challenge.resource,accepted,balance,authorization:{from:payer,to:CMC_RECIPIENT,value:String(fee),validAfter:String(now-30),validBefore:String(now+Math.min(accepted.maxTimeoutSeconds,300)),nonce:'0x'+randomBytes(32).toString('hex')}};
-    // Recheck after network awaits: concurrent quote requests share one purchase.
-    const saved = store.transaction(()=>{
-      const current = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? AND symbol=?').get(reportId,payer,input.symbol) as Row | undefined;
-      if (current && (current.status!=='quoted' || (JSON.parse(current.quote) as Quote).expiresAt>Date.now())) return current;
-      if (current) store.db.prepare('DELETE FROM browser_purchases WHERE id=? AND status=\'quoted\'').run(current.id);
-      store.db.prepare('INSERT INTO browser_purchases(id,reportId,payer,symbol,status,quote,createdAt) VALUES (?,?,?,?,?,?,?)').run(quote.id,reportId,payer,input.symbol,'quoted',JSON.stringify(quote),new Date().toISOString());
-      return read(quote.id)!;
-    });
-    store.event(null,'premium.browser.quoted',{reportId,purchaseId:saved.id,amount:fee,payer});
-    res.json(publicRow(saved));
   });
   app.post('/api/premium/purchases/:id/pay', async (req,res) => {
     auth(req); checkEnabled();

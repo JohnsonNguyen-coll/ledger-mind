@@ -87,7 +87,8 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
     const snapshot=key;
     if(account.chainId!==8453)await switchChainAsync({chainId:8453});
     if(currentKey.current!==snapshot)return;
-    const response=await api<Purchase>('/api/premium/quote',settings,{...(report?.reportId ? {reportId:report.reportId} : {}),payer:account.address,symbol:effectiveSymbol});
+    const isReportAsset = Boolean(report?.assets.some(a => a.symbol.replace(/^W/,'').replace(/^cb/,'') === effectiveSymbol));
+    const response=await api<Purchase>('/api/premium/quote',settings,{reportId:isReportAsset?report?.reportId:'global',payer:account.address,symbol:effectiveSymbol});
     if(currentKey.current===snapshot)setPurchase(response);
     await loadHistory();
   });
