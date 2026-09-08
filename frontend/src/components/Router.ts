@@ -40,6 +40,10 @@ export function handleRoute(path: string, pushState = true) {
       showWorkspace();
       switchTab('tab-copilot');
       break;
+    case '/premium':
+      showWorkspace();
+      switchTab('tab-premium');
+      break;
     default:
       showLandingPage();
       break;

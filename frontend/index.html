@@ -256,6 +256,19 @@
             </svg>
             <span>AI Copilot & Workflow</span>
           </button>
+          <button type="button" class="tab-btn" data-tab-target="tab-premium" data-route="/premium">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+            <span>x402 Premium Market</span>
+          </button>
         </div>
         <div class="tab-actions">
           <a href="/docs" data-route="/docs" class="subtle-link">Documentation ↗</a>
@@ -399,7 +412,6 @@
           </div>
         </section>
 
-        <div id="premium-root"><p class="chart-caption">Loading wallet tools…</p></div>
         <section class="panel cashflow-panel">
           <div class="section-head">
             <div class="head-title">Native transfer cash flow</div>
@@ -517,6 +529,11 @@ Run an analysis to generate a multisig-safe treasury review draft.</pre
               >
             </article>
           </div>
+        </section>
+
+        <!-- TAB 5: x402 PREMIUM INTELLIGENCE (STANDALONE PAGE/TAB) -->
+        <section id="tab-premium" class="tab-content" hidden>
+          <div id="premium-root"><p class="chart-caption">Loading premium wallet tools…</p></div>
         </section>
       </div>
     </main>

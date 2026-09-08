@@ -5,6 +5,7 @@ const tabRouteMap: Record<string, string> = {
   'tab-assets': '/assets',
   'tab-risk-audit': '/risk-audit',
   'tab-copilot': '/copilot',
+  'tab-premium': '/premium',
 };
 
 export function switchTab(tabId: string) {
