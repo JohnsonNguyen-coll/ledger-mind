@@ -23,6 +23,8 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     id TEXT PRIMARY KEY, reportId TEXT NOT NULL REFERENCES treasury_reports(id), payer TEXT NOT NULL,
     symbol TEXT NOT NULL, status TEXT NOT NULL, quote TEXT NOT NULL, result TEXT,
     createdAt TEXT NOT NULL, submittedAt TEXT, UNIQUE(reportId,payer,symbol));
+    INSERT OR IGNORE INTO treasury_reports(id, walletAddress, chainId, summary, report, markdown, reportHash, createdAt)
+    VALUES ('global', '0x0000000000000000000000000000000000000000', 8453, 'Global Market Snapshot', '{}', '', 'global', CURRENT_TIMESTAMP);
     UPDATE browser_purchases SET status='unknown' WHERE status='submitting';`);
   const read = (id: string) => store.db.prepare('SELECT * FROM browser_purchases WHERE id=?').get(id) as Row | undefined;
   const publicRow = (row: Row) => ({ id: row.id, reportId: row.reportId, payer: row.payer, symbol: row.symbol, status: row.status, quote: JSON.parse(row.quote) as Quote, result: row.result ? JSON.parse(row.result) : null });

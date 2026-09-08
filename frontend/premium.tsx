@@ -114,6 +114,39 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
       throw new Error('The response was interrupted. Use Refresh status; do not pay again.');
     }
   });
+  const exportAll = () => {
+    const settled = history.filter(p => p.result?.data);
+    if (!settled.length) return;
+    const content = [
+      `# LedgerMind Premium Market Intelligence Snapshot`,
+      `Exported: ${new Date().toLocaleString()}`,
+      `Total Assets Exported: ${settled.length}`,
+      ``,
+      ...settled.map(p => {
+        const data = p.result?.data;
+        const receipt = p.result?.receipt;
+        const metrics = data?.metrics || {};
+        return [
+          `## ${p.symbol} Institutional Market Snapshot`,
+          `Payer: ${p.payer}`,
+          `Status: ${p.status}`,
+          `Base Settlement TX: ${receipt?.transaction || 'Unconfirmed'}`,
+          ``,
+          `### Key Metrics`,
+          ...Object.entries(metrics).map(([k, v]) => `- ${k}: ${v}`),
+          ``,
+          `Observed At: ${data?.observedAt || 'N/A'}`,
+          `----------------------------------------`
+        ].join('\n');
+      })
+    ].join('\n\n');
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ledgermind-premium-all-${Date.now()}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   return <section className="premium-panel panel" aria-label="Premium market data">
     <div className="premium-heading"><div><p className="eyebrow">PREMIUM / COINMARKETCAP</p><h3>More context for your treasury.</h3><p>Buy a market snapshot with your own wallet. Your analyzed wallet can be different.</p></div><ConnectButton label="Connect Wallet" accountStatus="address" chainStatus="icon" showBalance={false}/></div>
     <ol className="premium-steps"><li className={account.isConnected?'done':''}>01 Connect Wallet</li><li className={selected?'done':''}>02 Review quote</li><li className={selected?.status==='settled'?'done':''}>03 Pay & receive</li></ol>
@@ -121,6 +154,7 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
       <div className="premium-controls"><label>Asset<select className="custom-select" value={effectiveSymbol} onChange={e=>setSymbol(e.target.value)} disabled={!!busy}>{symbols.map(s=><option key={s}>{s}</option>)}</select></label>
         <button className="btn-solid-secondary" disabled={!account.isConnected || !effectiveSymbol || !!busy || (!!selected && selected.status!=='quoted')} onClick={getQuote}>{account.chainId && account.chainId!==8453?'Switch to Base & get quote':'Get premium quote'}</button>
         <button className="btn-ghost-sm" disabled={!!busy} onClick={()=>action('Refreshing saved status…',async()=>{setPurchase(null);await loadHistory();})}>Refresh status</button>
+        {history.some(p => p.result?.data) && <button className="btn-ghost-sm" disabled={!!busy} onClick={exportAll}>Export all (.md)</button>}
       </div>
       {!account.isConnected && <p className="chart-caption">Connect Wallet to review payment terms. Connecting does not authorize a payment.</p>}
       {selected?.status==='quoted' && <div className="premium-quote"><div className="premium-price">0.01 <span>USDC / Base</span></div><dl><dt>You receive</dt><dd>{effectiveSymbol} Top 10 Whale Wallet Address Tracking, Orderbook Depth ±2%, AI Rebalance Strategy & Liquidation Heatmap</dd><dt>Paying wallet</dt><dd>{selected.payer}</dd><dt>Merchant recipient</dt><dd>{selected.quote.payTo}</dd><dt>USDC balance</dt><dd>{(Number(selected.quote.balance)/1e6).toLocaleString()} USDC</dd><dt>Quote expires</dt><dd>{expired?'Expired — get a fresh quote':`${Math.max(0,Math.ceil((selected.quote.expiresAt-now)/1000))} seconds`}</dd></dl><p>A single-use USDC authorization. The merchant submits settlement; no unlimited token approval is requested.</p><button className="btn-solid-primary" disabled={!!busy || expired || account.chainId!==8453 || account.address?.toLowerCase()!==selected.payer} onClick={pay}>Confirm & pay 0.01 USDC</button></div>}
