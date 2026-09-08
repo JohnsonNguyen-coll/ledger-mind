@@ -9,7 +9,7 @@ import { databaseIdentity, findRunningInstance } from '../src/instance.js';
 import { testConfig } from './helpers.js';
 
 test('repeated startup finds the same DB and preserves running tasks and reservations', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'alphamesh-startup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ledgermind-startup-'));
   const config = testConfig({ databasePath: join(dir, 'demo.sqlite') });
   const system = await startSystem(config);
   try {
@@ -40,7 +40,7 @@ test('repeated startup finds the same DB and preserves running tasks and reserva
 });
 
 test('unrelated DB, mismatched lock PID and unreachable server are not reused', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'alphamesh-startup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ledgermind-startup-'));
   const config = testConfig({ databasePath: join(dir, 'demo.sqlite') });
   const system = await startSystem(config);
   const port = Number(new URL(system.url).port);

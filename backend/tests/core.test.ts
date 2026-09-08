@@ -73,7 +73,7 @@ test('daily reset: unsettled holds remain across UTC midnight; settled usage res
   }
 });
 test('restart: unresolved reservation remains held and task interrupted', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'alphamesh-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ledgermind-test-'));
   const path = join(dir, 'db.sqlite');
   const limits = { wallet: 1e6, maxPayment: 1e5, dailyBudget: 1e6 };
   let s = new Store(path, limits);

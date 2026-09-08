@@ -10,12 +10,12 @@ frontend/
 
 backend/
   src/
-    app.ts              Express API and Treasury Analyzer route
+    app.ts              Express API, SPA fallback router, and Treasury Analyzer routes
     system.ts           Server assembly and lifecycle
-    store.ts            SQLite budget and append-only audit ledger
-    payments/           x402 and Binance Agentic Wallet adapters
+    store.ts            Storage manager (SQLite local / Supabase PostgreSQL Cloud) and audit ledger
+    payments/           x402 browser wallet & payment adapters
     services/           Binance, CoinMarketCap, fixtures and registry
-    agent/              Legacy tool runner and model providers
+    agent/              Task runner and model providers (OpenAI, OpenRouter, Gemini)
   tests/
   scripts/
   docs/

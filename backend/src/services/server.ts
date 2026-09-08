@@ -26,10 +26,10 @@ export async function startService(service: Service, port: number, secret: strin
     if (!['ETH', 'BTC', 'BNB', 'SOL'].includes(symbol))
       return res.status(400).json({ error: 'UNSUPPORTED_SYMBOL' });
     const resource = service.baseUrl + `/data/${symbol}`;
-    const token = req.header('X-AlphaMesh-Receipt');
+    const token = req.header('X-LedgerMind-Receipt');
     if (!token)
       return res.status(402).json({
-        protocol: 'alphamesh-mock-v1',
+        protocol: 'ledgermind-mock-v1',
         serviceId: service.id,
         resource,
         amount: service.price,
@@ -42,7 +42,7 @@ export async function startService(service: Service, port: number, secret: strin
         receipt.resource !== resource ||
         receipt.serviceId !== service.id ||
         receipt.amount !== service.price ||
-        receipt.taskId !== req.header('X-AlphaMesh-Task')
+        receipt.taskId !== req.header('X-LedgerMind-Task')
       )
         throw new Error('RECEIPT_MISMATCH');
       res.setHeader('Cache-Control', 'no-store');

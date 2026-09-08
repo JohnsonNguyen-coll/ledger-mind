@@ -253,7 +253,7 @@ test('live HTTP consent is required and recorded; zero budget cannot sign', asyn
     const post = (consent: boolean, budgetUsd = '0') =>
       fetch(url + '/api/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-AlphaMesh-Token': conf.csrfToken },
+        headers: { 'Content-Type': 'application/json', 'X-LedgerMind-Token': conf.csrfToken },
         body: JSON.stringify({
           requestKey: randomUUID(),
           prompt: 'Mua CMC',

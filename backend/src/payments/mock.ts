@@ -4,7 +4,7 @@ import type { Payment, Service } from '../types.js';
 import type { PaymentAdapter, Quote, Authorization } from './adapter.js';
 
 export const mockChallenge = z.object({
-  protocol: z.literal('alphamesh-mock-v1'),
+  protocol: z.literal('ledgermind-mock-v1'),
   serviceId: z.string(),
   resource: z.string().url(),
   amount: z.number().int().positive(),
@@ -63,7 +63,7 @@ export class MockPaymentAdapter implements PaymentAdapter {
       this.secret,
     );
     return {
-      headers: { 'X-AlphaMesh-Receipt': token, 'X-AlphaMesh-Task': payment.taskId },
+      headers: { 'X-LedgerMind-Receipt': token, 'X-LedgerMind-Task': payment.taskId },
       receiptId,
       settled: true,
     };

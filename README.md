@@ -77,7 +77,7 @@ Base uses ETH as its native asset. Wrapped assets retain their own tickers in re
 | Public RPC                 | Native balances and configured ERC-20 `balanceOf` calls.                         |
 | Blockscout                 | Recent native transfer sample, when available.                                   |
 | Binance public market data | Non-stable asset reference prices and BTC/ETH/BNB market tickers quoted in USDT. |
-| Local SQLite store         | Saved reports, task state, payment budget records, and audit events.             |
+| Storage (SQLite / Supabase) | Saved reports, task state, payment budget records, and audit events. Supports local SQLite or Cloud Supabase PostgreSQL. |
 
 - **Treasury value:** sum of tracked balances multiplied by available reference prices. Unpriced assets are excluded from the priced allocation chart.
 - **Stablecoin buffer:** tracked USDC and USDT balances valued using a fixed $1 assumption. This is not a live depeg check.
@@ -94,21 +94,24 @@ USD values use market references and stablecoin assumptions, not historical exec
 
 The landing allocation preview is explicitly illustrative. Market tickers use fetched quotes with observation metadata; cached quotes are labeled and unavailable quotes are not replaced with invented prices. They are independent of prices in saved reports.
 
-The local SHA-256 audit chain can detect modifications against a trusted checkpoint. It is not external notarization.
+The SHA-256 audit chain can detect modifications against a trusted checkpoint. It is not external notarization.
 
 ## Configuration and optional paid data
 
-Default configuration uses `AGENT_MODE=demo`, `MARKET_MODE=fixture`, and `PAYMENT_MODE=mock` for the agent task system. The treasury analyzer and landing tickers still call public RPC, explorer, and Binance endpoints directly; these defaults do not make treasury analysis an offline fixture.
+Default configuration uses built-in fallback defaults for demo and fixture modes, keeping `.env` clean and minimal.
 
-| Setting                                                      | Purpose                                                                                                                    |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                                                       | Web server port; defaults to `3000`.                                                                                       |
-| `DATABASE_PATH`                                              | SQLite file; defaults to `./data/alphamesh.sqlite`. The filename is retained for compatibility.                            |
-| `AGENT_MODE`                                                 | Task runner provider: `demo`, `openai`, `openrouter`, or `gemini`. Non-demo providers require their corresponding API key. |
-| `PAYMENT_MODE`                                               | `mock` or `binance` payment adapter.                                                                                       |
-| `REAL_PAYMENTS_ENABLED`                                      | Explicit gate for real payments; defaults to `false`.                                                                      |
-| `BAW_CLI_JS`                                                 | Absolute path to the Binance Agentic Wallet CLI JavaScript entry.                                                          |
-| `MAX_PAYMENT_USD`, `DAILY_BUDGET_USD`, `MAX_TASK_BUDGET_USD` | Paid-data spending limits.                                                                                                 |
+| Setting | Purpose |
+| --- | --- |
+| `PORT` | Web server port; defaults to `3000`. |
+| `DATABASE_PATH` | Local SQLite database file path; defaults to `./data/ledgermind.sqlite`. |
+| `DATABASE_URL` | Supabase PostgreSQL Connection String (used for Cloud deployment on Vercel/Render/Railway). |
+| `SUPABASE_URL` | Supabase Project URL (e.g. `https://xxxx.supabase.co`). |
+| `SUPABASE_ANON_KEY` | Supabase anonymous public API key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role secret key. |
+| `AGENT_MODE` | Task runner provider: `demo`, `openai`, `openrouter`, or `gemini`. Defaults to `demo`. |
+| `PAYMENT_MODE` | `mock` or `binance` payment adapter. Defaults to `mock`. |
+| `REAL_PAYMENTS_ENABLED` | Explicit gate for real payments; defaults to `false`. |
+| `BROWSER_PREMIUM_ENABLED` | Enables browser x402 payment authorization modal; defaults to `true`. |
 
 x402 supports optional paid data access. The dashboard uses **RainbowKit, wagmi, and viem** to connect a browser wallet and sign a one-time USDC authorization. This flow is independent of the Binance Agentic Wallet task runner and does not require a model key or backend wallet CLI.
 

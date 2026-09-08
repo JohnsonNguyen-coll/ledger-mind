@@ -7,8 +7,12 @@ const envSchema = z.object({
   WHALE_PORT: z.coerce.number().int().min(1).max(65535).default(4101),
   SENTIMENT_PORT: z.coerce.number().int().min(1).max(65535).default(4102),
   RISK_PORT: z.coerce.number().int().min(1).max(65535).default(4103),
-  DATABASE_PATH: z.string().default('./data/alphamesh.sqlite'),
-  AGENT_MODE: z.enum(['demo', 'openai', 'openrouter', 'gemini']).default('demo'),
+  DATABASE_PATH: z.string().default('./data/ledgermind.sqlite'),
+  DATABASE_URL: z.string().default(''),
+  SUPABASE_URL: z.string().default(''),
+  SUPABASE_ANON_KEY: z.string().default(''),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
+  AGENT_MODE: z.enum(['demo', 'openai', 'openrouter', 'gemini', 'groq']).default('demo'),
   MARKET_MODE: z.enum(['fixture', 'binance']).default('fixture'),
   PAYMENT_MODE: z.enum(['mock', 'binance']).default('mock'),
   MOCK_WALLET_USD: z.string().default('10.00'),
@@ -26,6 +30,8 @@ const envSchema = z.object({
     .string()
     .regex(/^gemini-[a-zA-Z0-9.-]+$/)
     .default('gemini-3.6-flash'),
+  GROQ_API_KEY: z.string().trim().default(''),
+  GROQ_MODEL: z.string().trim().min(1).default('llama-3.3-70b-versatile'),
   BAW_CLI_JS: z.string().default(''),
   REAL_PAYMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
   BROWSER_PREMIUM_ENABLED: z.enum(['true', 'false']).default('true'),
@@ -41,10 +47,16 @@ export function readConfig(requireModelKey = true) {
     throw new Error('OPENAI_API_KEY_REQUIRED');
   if (requireModelKey && e.AGENT_MODE === 'gemini' && !e.GEMINI_API_KEY)
     throw new Error('GEMINI_API_KEY_REQUIRED');
+  if (requireModelKey && e.AGENT_MODE === 'groq' && !e.GROQ_API_KEY)
+    throw new Error('GROQ_API_KEY_REQUIRED');
   return {
     port: e.PORT,
     servicePorts: [e.WHALE_PORT, e.SENTIMENT_PORT, e.RISK_PORT],
     databasePath: e.DATABASE_PATH,
+    databaseUrl: e.DATABASE_URL,
+    supabaseUrl: e.SUPABASE_URL,
+    supabaseAnonKey: e.SUPABASE_ANON_KEY,
+    supabaseServiceRoleKey: e.SUPABASE_SERVICE_ROLE_KEY,
     agentMode: e.AGENT_MODE,
     marketMode: e.MARKET_MODE,
     paymentMode: e.PAYMENT_MODE,
@@ -57,12 +69,15 @@ export function readConfig(requireModelKey = true) {
     openaiKey: e.OPENAI_API_KEY,
     openrouterKey: e.OPENROUTER_API_KEY,
     geminiKey: e.GEMINI_API_KEY,
+    groqKey: e.GROQ_API_KEY,
     model:
-      e.AGENT_MODE === 'gemini'
-        ? e.GEMINI_MODEL
-        : e.AGENT_MODE === 'openrouter'
-          ? e.OPENROUTER_MODEL
-          : e.OPENAI_MODEL,
+      e.AGENT_MODE === 'groq'
+        ? e.GROQ_MODEL
+        : e.AGENT_MODE === 'gemini'
+          ? e.GEMINI_MODEL
+          : e.AGENT_MODE === 'openrouter'
+            ? e.OPENROUTER_MODEL
+            : e.OPENAI_MODEL,
     bawCliJs: e.BAW_CLI_JS,
     realEnabled: e.REAL_PAYMENTS_ENABLED === 'true',
     browserPremiumEnabled: e.BROWSER_PREMIUM_ENABLED === 'true',

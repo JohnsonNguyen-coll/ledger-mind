@@ -17,7 +17,7 @@ test('HTTP demo: 402, $0.06 full research, $0.04 limit, $0 free, export and idem
     };
     const headers = {
       'Content-Type': 'application/json',
-      'X-AlphaMesh-Token': configuration.csrfToken,
+      'X-LedgerMind-Token': configuration.csrfToken,
     };
     assert.equal((await fetch(system.services[0]!.baseUrl + '/data/ETH')).status, 402);
     for (const [budget, expected] of [
@@ -61,7 +61,7 @@ test('HTTP demo: 402, $0.06 full research, $0.04 limit, $0 free, export and idem
     };
     assert.ok(audit.integrityValid);
     assert.ok(audit.events.length > 10);
-    assert.ok(!JSON.stringify(audit).includes('X-AlphaMesh-Receipt'));
+    assert.ok(!JSON.stringify(audit).includes('X-LedgerMind-Receipt'));
   } finally {
     await system.close();
   }
@@ -95,7 +95,7 @@ test('HTTP guards: missing token, hostile origin, malformed input, budget cap an
         (
           await fetch(s.url + '/api/tasks', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-AlphaMesh-Token': c.csrfToken },
+            headers: { 'Content-Type': 'application/json', 'X-LedgerMind-Token': c.csrfToken },
             body: JSON.stringify({
               requestKey: randomUUID(),
               prompt: 'Research ETH',

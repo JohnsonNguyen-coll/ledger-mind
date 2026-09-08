@@ -69,7 +69,7 @@ test('new task API requires no selected asset, preserves idempotency and runs lo
     const { csrfToken } = await (await fetch(system.url + '/api/config')).json() as { csrfToken: string };
     const payload = { requestKey: randomUUID(), prompt: 'Research Solana', budgetUsd: '0' };
     const post = () => fetch(system.url + '/api/tasks', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-AlphaMesh-Token': csrfToken }, body: JSON.stringify(payload) });
+      headers: { 'Content-Type': 'application/json', 'X-LedgerMind-Token': csrfToken }, body: JSON.stringify(payload) });
     const response = await post(); assert.equal(response.status, 202);
     const { taskId } = await response.json() as { taskId: string };
     await system.runner.idle();

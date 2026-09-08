@@ -78,7 +78,7 @@ test('CMC selects by pinned fields instead of position, rejects approvals; accep
 
 for (const mode of ['success', 'timeout', 'missing_receipt', 'data_failure'] as const) {
   test(`CMC one-shot ${mode}: journal survives and prevents another charge`, async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'alphamesh-cmc-'));
+    const directory = await mkdtemp(join(tmpdir(), 'ledgermind-cmc-'));
     let httpCalls = 0;
     let signs = 0;
     const tx = '0x' + 'a'.repeat(64);

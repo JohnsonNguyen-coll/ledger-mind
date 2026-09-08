@@ -26,7 +26,7 @@ async function hideModal(page: Page, modalId: string) {
 }
 
 async function main() {
-  console.log('=== AlphaMesh LIVE Hackathon Demo Recorder (Port 3001) ===');
+  console.log('=== LedgerMind LIVE Hackathon Demo Recorder (Port 3001) ===');
 
   // 1. Load live environment (.env.live)
   const envLivePath = resolve('.env.live');
@@ -36,12 +36,12 @@ async function main() {
   dotenv.config({ path: envLivePath, override: true });
 
   // Clean up stale live lock if exists
-  const lockFile = resolve('./data/alphamesh-live.sqlite.lock');
+  const lockFile = resolve('./data/ledgermind-live.sqlite.lock');
   if (existsSync(lockFile)) {
     try { unlinkSync(lockFile); } catch {}
   }
 
-  console.log('Starting AlphaMesh LIVE server on port 3001...');
+  console.log('Starting LedgerMind LIVE server on port 3001...');
   const config = readConfig();
   const system = await startSystem(config);
   console.log('Live server started at:', system.url);
@@ -171,15 +171,15 @@ async function main() {
   await page.waitForTimeout(1000);
 
   // =========================================================================
-  // SCENE 5: Whale OS (Multi-Chain RPC Scan + Gemini 3.6 Flash for fast AI)
+  // SCENE 5: LedgerMind Copilot (Multi-Chain RPC Scan + Gemini 3.6 Flash for fast AI)
   // =========================================================================
-  console.log('Scene 5: Whale OS & Multi-Chain Intelligence...');
+  console.log('Scene 5: LedgerMind Copilot & Multi-Chain Intelligence...');
   await page.click('#nav-it');
   await showModal(page, 'modal-it');
   await page.waitForTimeout(2000);
 
-  // Click on whale preset
-  console.log('Selecting Whale preset...');
+  // Click on treasury preset
+  console.log('Selecting Treasury preset...');
   await page.click('[data-preset="dumper"]');
   await page.waitForTimeout(1500);
 
@@ -188,8 +188,8 @@ async function main() {
   await page.click('#btn-run-profiler');
   await page.waitForTimeout(5000); // wait for RPC results to render
 
-  // Switch to Whale Radar tab
-  console.log('Switching to Whale Radar tab...');
+  // Switch to Treasury Radar tab
+  console.log('Switching to Treasury Radar tab...');
   await page.click('#it-tab-btn-radar');
   await page.waitForTimeout(1500);
 
@@ -203,7 +203,7 @@ async function main() {
   await page.waitForTimeout(1200);
 
   // Submit query
-  console.log('Submitting natural language inquiry to Whale OS (Gemini 3.6 Flash)...');
+  console.log('Submitting natural language inquiry to LedgerMind Copilot (Gemini 3.6 Flash)...');
   await page.click('#btn-submit-nl');
   await page.waitForTimeout(6000); // Gemini returns rapidly
 
@@ -211,7 +211,7 @@ async function main() {
   await page.hover('#it-action-card');
   await page.waitForTimeout(4000);
 
-  // Close Whale OS
+  // Close Copilot
   await hideModal(page, 'modal-it');
   await page.waitForTimeout(2000);
 
@@ -226,7 +226,7 @@ async function main() {
 
   if (video) {
     const videoPath = await video.path();
-    const finalPath = resolve(outputDir, 'alphamesh-demo.webm');
+    const finalPath = resolve(outputDir, 'ledgermind-demo.webm');
     if (existsSync(finalPath)) unlinkSync(finalPath);
     await rename(videoPath, finalPath);
     console.log('\n>>> SUCCESS! LIVE Demo video recorded and saved to:');

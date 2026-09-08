@@ -525,7 +525,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
   let checkRunning = false;
   let checkedAt = 0;
   app.post('/api/model/check', async (req, res) => {
-    const sent = Buffer.from(req.header('X-AlphaMesh-Token') ?? '');
+    const sent = Buffer.from(req.header('X-LedgerMind-Token') ?? '');
     const expected = Buffer.from(token);
     if (sent.length !== expected.length || !timingSafeEqual(sent, expected))
       return res.status(403).json({ error: 'SESSION_TOKEN_REQUIRED' });
@@ -553,7 +553,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     });
   });
   app.post('/api/tasks', (req, res) => {
-    const sent = Buffer.from(req.header('X-AlphaMesh-Token') ?? '');
+    const sent = Buffer.from(req.header('X-LedgerMind-Token') ?? '');
     const expected = Buffer.from(token);
     if (sent.length !== expected.length || !timingSafeEqual(sent, expected))
       return res.status(403).json({ error: 'SESSION_TOKEN_REQUIRED' });
@@ -906,42 +906,41 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       liveRpc: rpcSuccess,
       ethBalance: totalEthBalance,
       bnbBalance: totalBnbBalance,
-      usdVal: totalUsdVal,
-      txCount: totalTxCount,
-      isContract,
-      chains: scanList,
-      mode: profilerMode,
-    });
-  });
+              usdVal: totalUsdVal,
+              txCount: totalTxCount,
+              isContract,
+              chains: scanList,
+              mode: profilerMode,
+            });
+          });
 
   app.post(['/api/whale/ask', '/api/wallet/reasoning'], async (req, res) => {
     const query = String(req.body?.query ?? '').trim();
     if (!query) return res.status(400).json({ error: 'QUERY_REQUIRED' });
 
-    const preferredModel = String(req.body?.model ?? 'gpt-5.6-sol').trim();
     const ethPrice = cachedTickers.find((t) => t.symbol === 'ETH')?.price ?? 3780.5;
     const btcPrice = cachedTickers.find((t) => t.symbol === 'BTC')?.price ?? 68450.21;
-    const agentrouterKey = process.env.AGENTROUTER_API_KEY || '';
-    const agentrouterBaseUrl = process.env.AGENTROUTER_BASE_URL || 'https://agentrouter.org/v1';
+    const groqKey = process.env.GROQ_API_KEY || config.groqKey;
+    const groqModel = process.env.GROQ_MODEL || config.model || 'llama-3.3-70b-versatile';
     const geminiKey = process.env.GEMINI_API_KEY || config.geminiKey;
     const openrouterKey = process.env.OPENROUTER_API_KEY || config.openrouterKey;
     const openrouterModel = process.env.OPENROUTER_MODEL || config.model || 'openrouter/free';
 
-    const systemPrompt = `You are WHALE OS — an autonomous institutional crypto intelligence AI agent running inside the AlphaMesh IT Hub.
-You monitor real-time whale movements, Binance market structure (orderbook depth, open interest, funding rates), portfolio risk, and on-chain telemetry.
+    const systemPrompt = `You are LedgerMind — an autonomous institutional crypto intelligence AI agent running inside the LedgerMind Treasury Platform.
+You monitor real-time treasury movements, Binance market structure (orderbook depth, open interest, funding rates), portfolio risk, and on-chain telemetry.
 Market context: BTC is $${btcPrice.toLocaleString()} USD, ETH is $${ethPrice.toLocaleString()} USD.
 
-When the user asks a question, analyzes a whale, or requests market intelligence, return a strictly valid JSON object with this exact schema:
+When the user asks a question, analyzes a wallet, or requests market intelligence, return a strictly valid JSON object with this exact schema:
 {
-  "step1": "Title and finding for Step 1 (e.g. ▶ STEP 1: READ ETH PRICE & ORDERBOOK DEPTH ...)",
-  "step2": "Title and finding for Step 2 (e.g. ▶ STEP 2: FUNDING RATE & OPEN INTEREST ...)",
-  "step3": "Title and finding for Step 3 (e.g. ▶ STEP 3: WHALE ON-CHAIN CONFIRMATION ...)",
-  "synthesis": "Comprehensive autonomous reasoning combining whale moves and market structure (Signal vs Noise evaluation).",
-  "thesis": "Concise thesis explaining why action is or is not needed (EXPLAIN).",
-  "plan": "Actionable recommended plan, such as a hedge, DCA, or limit order (RECOMMENDED PLAN).",
+  "step1": "Title and finding for Step 1",
+  "step2": "Title and finding for Step 2",
+  "step3": "Title and finding for Step 3",
+  "synthesis": "Comprehensive autonomous reasoning combining portfolio moves and market structure.",
+  "thesis": "Concise thesis explaining why action is or is not needed.",
+  "plan": "Actionable recommended plan, such as a hedge, DCA, or limit order.",
   "risk": "HIGH"
 }
-Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham Intelligence), concise, and directly answers the user's prompt.`;
+Ensure your answer is professional, institutional-grade, concise, and directly answers the user's prompt.`;
 
     const normalizePlan = (rawPlan: unknown): string => {
       if (Array.isArray(rawPlan)) {
@@ -977,7 +976,7 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
           try {
             parsed = JSON.parse(candidate);
           } catch (err) {
-            console.warn('[WHALE OS] Candidate JSON parse failed:', err);
+            console.warn('[LedgerMind AI] Candidate JSON parse failed:', err);
           }
         }
       }
@@ -991,22 +990,19 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
       return null;
     };
 
-    let lastAgentRouterStatus: number | null = null;
-
-    const callAgentRouter = async () => {
-      if (!agentrouterKey) return null;
+    const callGroq = async () => {
+      if (!groqKey) return null;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 85000);
+      const timeout = setTimeout(() => controller.abort(), 60000);
       try {
-        const r = await fetch(`${agentrouterBaseUrl}/chat/completions`, {
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${agentrouterKey}`,
+            Authorization: `Bearer ${groqKey}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'Kilo-Code/5.3.0',
           },
           body: JSON.stringify({
-            model: 'gpt-5.6-sol',
+            model: groqModel,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: query },
@@ -1017,35 +1013,28 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
         });
         clearTimeout(timeout);
         if (r.ok) {
-          const data = (await r.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
+          const data = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
           const raw = data.choices?.[0]?.message?.content ?? '';
           const parsed = extractJsonPayload(raw);
           if (parsed) {
             return {
-              model: 'gpt-5.6-sol',
-              provider: 'AgentRouter',
+              model: groqModel,
+              provider: 'Groq Cloud (Free)',
               liveAi: true,
               ...parsed,
               plan: normalizePlan(parsed.plan),
             };
-          } else {
-            console.warn('[WHALE OS] Could not extract JSON from AgentRouter output:', raw.slice(0, 150));
           }
-        } else {
-          lastAgentRouterStatus = r.status;
-          console.warn('[WHALE OS] AgentRouter status:', r.status);
         }
       } catch (err) {
-        console.warn('[WHALE OS] AgentRouter error:', err);
+        console.warn('[LedgerMind AI] Groq error:', err);
       } finally {
         clearTimeout(timeout);
       }
       return null;
     };
 
-    const callGemini = async (attempt = 1): Promise<Record<string, unknown> | null> => {
+    const callGemini = async (): Promise<Record<string, unknown> | null> => {
       if (!geminiKey) return null;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 60000);
@@ -1083,19 +1072,9 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
               plan: normalizePlan(parsed.plan),
             };
           }
-        } else {
-          console.warn('[WHALE OS] Gemini API error status:', r.status);
-          if (attempt < 2 && (r.status === 503 || r.status === 429)) {
-            await new Promise((res) => setTimeout(res, 1200));
-            return callGemini(attempt + 1);
-          }
         }
       } catch (err) {
-        console.warn('[WHALE OS] Gemini API error / timeout:', err);
-        if (attempt < 2) {
-          await new Promise((res) => setTimeout(res, 1200));
-          return callGemini(attempt + 1);
-        }
+        console.warn('[LedgerMind AI] Gemini error:', err);
       } finally {
         clearTimeout(timeout);
       }
@@ -1139,7 +1118,7 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
           }
         }
       } catch (err) {
-        console.warn('[WHALE OS] OpenRouter error:', err);
+        console.warn('[LedgerMind AI] OpenRouter error:', err);
       } finally {
         clearTimeout(timeout);
       }
@@ -1147,56 +1126,14 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
     };
 
     let result: Record<string, unknown> | null = null;
-    if (preferredModel === 'gemini-3.6-flash') {
-      const geminiRes = await callGemini();
-      if (geminiRes) {
-        result = geminiRes;
-      } else {
-        const gptRes = await callAgentRouter();
-        if (gptRes) {
-          result = {
-            ...gptRes,
-            fallbackNotice:
-              'Google Gemini 3.6 Flash không phản hồi kịp thời. Hệ thống đã tự động chuyển hướng sang GPT-5.6 Sol (AgentRouter) để hoàn tất yêu cầu.',
-          };
-        } else {
-          const orRes = await callOpenRouter();
-          if (orRes) {
-            result = {
-              ...orRes,
-              fallbackNotice:
-                'Hệ thống đã tự động kích hoạt OpenRouter để trả về phân tích cá mập.',
-            };
-          }
-        }
-      }
-    } else {
-      const gptRes = await callAgentRouter();
-      if (gptRes) {
-        result = gptRes;
-      } else {
-        const geminiRes = await callGemini();
-        if (geminiRes) {
-          result = {
-            ...geminiRes,
-            fallbackNotice:
-              lastAgentRouterStatus === 402
-                ? 'AgentRouter hết hạn mức (402). Hệ thống đã tự động kích hoạt Gemini 3.6 Flash để trả về kết quả ngay lập tức.'
-                : lastAgentRouterStatus === 429
-                  ? 'AgentRouter hiện đang quá tải hàng đợi (429 Too Many Requests). Hệ thống đã tự động chuyển sang Gemini 3.6 Flash để trả về kết quả ngay lập tức.'
-                  : 'AgentRouter tạm thời không phản hồi. Hệ thống đã tự động kích hoạt Gemini 3.6 Flash làm cứu cánh.',
-          };
-        } else {
-          const orRes = await callOpenRouter();
-          if (orRes) {
-            result = {
-              ...orRes,
-              fallbackNotice:
-                'Hệ thống đã tự động kích hoạt OpenRouter để trả về phân tích cá mập.',
-            };
-          }
-        }
-      }
+    if (groqKey || config.agentMode === 'groq') {
+      result = await callGroq();
+    }
+    if (!result && geminiKey) {
+      result = await callGemini();
+    }
+    if (!result && openrouterKey) {
+      result = await callOpenRouter();
     }
 
     if (result) {
@@ -1208,17 +1145,17 @@ Ensure your answer is professional, institutional-grade (like Bloomberg / Arkham
       provider: 'Local Rules',
       liveAi: false,
       step1: `▶ STEP 1: MARKET CROSS-ANALYSIS · BTC: $${btcPrice.toLocaleString()} · ETH: $${ethPrice.toLocaleString()}`,
-      step2: `▶ STEP 2: WHALE RADAR CLUSTER SCAN · Live mempool filter evaluating transfers against Binance depth.`,
+      step2: `▶ STEP 2: TREASURY CLUSTER SCAN · Live mempool filter evaluating transfers against Binance depth.`,
       step3: `▶ STEP 3: DERIVATIVES MONITOR · Spot liquidity depth & funding rates cross-checked.`,
-      synthesis: `Whale move evaluated against spot orderbook depth and funding equilibrium. Continuous radar tracking active.`,
+      synthesis: `Portfolio move evaluated against spot orderbook depth and funding equilibrium. Continuous radar tracking active.`,
       thesis: `Query "${query}" evaluated with Binance spot orderbooks and real-time on-chain mempool streams.`,
-      plan: `Maintain automated 24/7 whale radar surveillance and limit order alerts.`,
+      plan: `Maintain automated 24/7 treasury radar surveillance and limit order alerts.`,
       risk: 'MODERATE',
     });
   });
 
   app.get('/api/audit/export', (_req, res) => {
-    res.setHeader('Content-Disposition', 'attachment; filename="alphamesh-audit.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="ledgermind-audit.json"');
     res.json({
       schemaVersion: 1,
       paymentMode: config.paymentMode,

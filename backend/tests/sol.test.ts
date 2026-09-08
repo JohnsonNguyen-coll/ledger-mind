@@ -30,7 +30,7 @@ test('SOL HTTP task receives SOL fixtures; mismatch creates no task or payment',
   try {
     const config = await (await fetch(system.url + '/api/config')).json() as { csrfToken: string };
     const post = (symbol: string) => fetch(system.url + '/api/tasks', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AlphaMesh-Token': config.csrfToken },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LedgerMind-Token': config.csrfToken },
       body: JSON.stringify({ requestKey: randomUUID(), prompt: 'Research SOL', symbol, budgetUsd: '0.20' }),
     });
     const mismatch = await post('ETH');

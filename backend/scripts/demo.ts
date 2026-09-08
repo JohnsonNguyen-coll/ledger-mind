@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 // Demo tự chứa, dùng port tự cấp và DB trong memory. Không gọi OpenAI/Binance.
 const system = await startSystem(testConfig());
 try {
-  console.log('AlphaMesh · reproducible local payment demo\n');
+  console.log('LedgerMind · reproducible local payment demo\n');
   for (const [budget, expected] of [
     [200_000, 60_000],
     [40_000, 40_000],
