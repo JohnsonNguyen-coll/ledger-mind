@@ -4,9 +4,9 @@ import type { Service, Symbol } from '../types.js';
 import { verifyReceipt } from '../payments/mock.js';
 import { fixture } from './fixtures.js';
 
-export function listen(app: ReturnType<typeof express>, port: number): Promise<Server> {
+export function listen(app: ReturnType<typeof express>, port: number, host = process.env.HOST || '0.0.0.0'): Promise<Server> {
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, '127.0.0.1', () => resolve(server));
+    const server = app.listen(port, host, () => resolve(server));
     server.once('error', reject);
   });
 }
@@ -51,7 +51,7 @@ export async function startService(service: Service, port: number, secret: strin
       res.status(403).json({ error: 'PAYMENT_RECEIPT_REJECTED' });
     }
   });
-  const server = await listen(app, port);
+  const server = await listen(app, port, '127.0.0.1');
   service.baseUrl = address(server);
   return server;
 }
