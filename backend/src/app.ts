@@ -18,16 +18,19 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
   const databaseId = databaseIdentity(config.databasePath);
   app.disable('x-powered-by');
   app.use((req, res, next) => {
-    // Loopback binding + Host and Origin checks chống DNS rebinding và CSRF.
-    const host = req.headers.host ?? '';
-    if (!/^(127\.0\.0\.1|localhost):\d+$/.test(host))
-      return res.status(403).json({ error: 'HOST_REJECTED' });
     const origin = req.header('Origin');
-    if (origin && origin !== `http://${host}`)
-      return res.status(403).json({ error: 'ORIGIN_REJECTED' });
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-csrf-token');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://mainnet.base.org https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.reown.com; img-src 'self' data: https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src *; img-src 'self' data: https:; frame-ancestors 'none';",
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
