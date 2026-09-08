@@ -1,0 +1,41 @@
+:root {
+  color-scheme: dark;
+  
+  /* Core Solid Color Palette (Strictly NO Gradients) */
+  --bg-solid: #0a0f17;
+  --surface-solid: #121a26;
+  --surface-hover: #182333;
+  --surface-head: #16202e;
+  --input-solid: #0d141f;
+  
+  /* Borders & Dividers */
+  --border-solid: #1e2d40;
+  --border-focus: #00e5ff;
+  --border-hover: #2a3e58;
+  
+  /* Solid Accents */
+  --cyan: #00e5ff;
+  --blue: #3b82f6;
+  --emerald: #00f5a0;
+  --amber: #ffb800;
+  --rose: #ff4757;
+  
+  /* Text & Typography */
+  --text-primary: #f0f6fc;
+  --text-secondary: #94a3b8;
+  --text-muted: #5c6e85;
+  
+  /* Fonts */
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Layout & Modals */
+  --modal-backdrop: rgba(6, 10, 16, 0.82);
+  --shadow-solid: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --transition-fast: all 0.18s ease-in-out;
+}

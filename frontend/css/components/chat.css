@@ -1,0 +1,106 @@
+.chat-log {
+  min-height: 180px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #050a10;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-intro {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.chat-log p {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.chat-log .chat-user {
+  align-self: flex-end;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--text-primary);
+  max-width: 85%;
+}
+
+.chat-log .chat-answer {
+  align-self: flex-start;
+  background: rgba(15, 27, 41, 0.9);
+  border-left: 3px solid var(--cyan);
+  color: #cbd5e1;
+  max-width: 90%;
+}
+
+.chat-log .chat-answer.error-text {
+  color: #ff949d !important;
+  border-left-color: var(--rose) !important;
+}
+
+.prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip-btn {
+  font-size: 0.74rem;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--cyan);
+  transition: var(--transition-fast);
+}
+
+.chip-btn:hover {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: var(--cyan);
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-form input {
+  flex: 1;
+  height: 42px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.chat-form input:focus {
+  border-color: var(--cyan);
+}
+
+.btn-send {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 42px;
+  background: var(--cyan);
+  border-radius: var(--radius-sm);
+  color: #040911;
+  font-weight: 700;
+  transition: var(--transition-fast);
+}
+
+.btn-send:hover {
+  background: #33ecff;
+  box-shadow: 0 0 15px var(--cyan-glow);
+}

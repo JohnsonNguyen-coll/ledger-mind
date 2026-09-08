@@ -1,0 +1,103 @@
+.workspace-shell {
+  position: relative;
+  z-index: 10;
+  max-width: 1540px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.topbar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+  margin-bottom: 4px;
+}
+
+.topbar-header h2 {
+  font-size: clamp(1.4rem, 2vw, 2.2rem);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Metrics Grid Cards (Solid Colors Only) */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metric-card {
+  background: var(--surface-solid);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  transition: var(--transition-fast);
+}
+
+.metric-card:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+
+.metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.metric-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+}
+
+.metric-icon.cyan { background: rgba(0, 229, 255, 0.1); color: var(--cyan); }
+.metric-icon.emerald { background: rgba(0, 245, 160, 0.1); color: var(--emerald); }
+.metric-icon.blue { background: rgba(59, 130, 246, 0.1); color: var(--blue); }
+.metric-icon.amber { background: rgba(255, 184, 0, 0.1); color: var(--amber); }
+
+.metric-card strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.metric-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+#metric-risk.low { color: var(--emerald); }
+#metric-risk.medium { color: var(--amber); }
+#metric-risk.high { color: var(--rose); }

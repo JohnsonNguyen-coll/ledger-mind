@@ -1,0 +1,44 @@
+{
+  "name": "ledgermind",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Real onchain treasury intelligence with x402 paid-data guardrails",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "npm run build:frontend && tsx watch backend/src/index.ts",
+    "build:frontend": "tsc -p frontend/tsconfig.json && node backend/scripts/copy-web.mjs",
+    "build:backend": "tsc -p backend/tsconfig.json",
+    "build": "npm run build:backend && npm run build:frontend",
+    "start": "node dist/backend/src/index.js",
+    "setup:live": "tsx backend/scripts/setup-live.ts",
+    "setup:openrouter": "tsx backend/scripts/setup-openrouter.ts",
+    "start:live": "node --env-file=.env.live dist/backend/src/index.js",
+    "check:live": "node --env-file=.env.live --import tsx backend/scripts/check-live.ts",
+    "test": "tsx --test backend/tests/core.test.ts backend/tests/integration.test.ts backend/tests/adapters.test.ts backend/tests/startup.test.ts backend/tests/cmc.test.ts backend/tests/live.test.ts backend/tests/openrouter.test.ts backend/tests/gemini.test.ts backend/tests/sol.test.ts backend/tests/search.test.ts",
+    "check": "npm run build && npm test",
+    "demo": "tsx backend/scripts/demo.ts",
+    "wallet:preview": "tsx backend/scripts/wallet-preview.ts",
+    "wallet:quote:cmc": "tsx backend/scripts/cmc-quote.ts",
+    "wallet:buy:cmc": "tsx backend/scripts/cmc-buy.ts",
+    "format": "prettier --write backend frontend *.json README.md",
+    "setup:gemini": "tsx backend/scripts/setup-gemini.ts",
+    "check:model": "node --env-file=.env.live --import tsx backend/scripts/check-model.ts",
+    "record:demo": "tsx backend/scripts/record-demo-video.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "playwright-core": "^1.63.0",
+    "prettier": "^3.6.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
