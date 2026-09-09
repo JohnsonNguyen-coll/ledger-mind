@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { recoverTypedDataAddress, type Hex } from 'viem';
 import type { Store } from '../store.js';
 import type { Config } from '../config.js';
+import type { ReportAccess } from '../report-access.js';
 import { boundedJson } from './gateway.js';
 import { CMC_ORIGIN, CMC_PATH, CMC_RECIPIENT, CMC_USDC_BASE, cmcData, cmcResource } from '../services/cmc.js';
 
@@ -18,7 +19,7 @@ const fee = 10000;
 type Row = { id: string; reportId: string; payer: string; symbol: z.infer<typeof symbolSchema>; status: string; quote: string; result: string | null; createdAt: string; submittedAt: string | null };
 type Quote = { id: string; reportId: string; payer: string; symbol: z.infer<typeof symbolSchema>; expiresAt: number; amount: string; network: string; asset: string; payTo: string; resource: { url: string }; accepted: Record<string, unknown>; authorization: { from: string; to: string; value: string; validAfter: string; validBefore: string; nonce: string }; balance: string };
 
-export function installBrowserPremium(app: Express, store: Store, config: Config, csrf: string, fetcher: typeof fetch = fetch) {
+export function installBrowserPremium(app: Express, store: Store, config: Config, csrf: string, access: Pick<ReportAccess,'requireReport'|'requireWallet'>, fetcher: typeof fetch = fetch) {
   store.db.exec(`CREATE TABLE IF NOT EXISTS browser_purchases (
     id TEXT PRIMARY KEY, reportId TEXT NOT NULL REFERENCES treasury_reports(id), payer TEXT NOT NULL,
     symbol TEXT NOT NULL, status TEXT NOT NULL, quote TEXT NOT NULL, result TEXT,
@@ -51,19 +52,24 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     return BigInt(balance).toString();
   }
   app.get('/api/premium/purchases', (req,res) => {
+    const payer = access.requireWallet(req);
     const rawReportId = req.query.reportId ? String(req.query.reportId) : null;
     if (rawReportId && rawReportId !== 'global') {
       const reportId = z.string().uuid().parse(rawReportId);
+      access.requireReport(req, reportId);
       store.treasuryReport(reportId);
-      const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? ORDER BY createdAt DESC').all(reportId) as Row[];
+      const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? ORDER BY createdAt DESC').all(reportId,payer) as Row[];
       return res.json({ purchases: rows.map(publicRow) });
     }
-    const rows = store.db.prepare('SELECT * FROM browser_purchases ORDER BY createdAt DESC').all() as Row[];
+    const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE payer=? ORDER BY createdAt DESC').all(payer) as Row[];
     res.json({ purchases: rows.map(publicRow) });
   });
   app.get('/api/premium/purchases/:id', (req,res) => {
     const row = read(z.string().uuid().parse(req.params.id));
     if (!row) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
+    const viewer = access.requireWallet(req);
+    if (row.payer !== viewer) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
+    if (row.reportId !== 'global') access.requireReport(req,row.reportId);
     res.json(publicRow(row));
   });
   app.post('/api/premium/quote', async (req,res) => {
@@ -72,7 +78,9 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
       const input = z.object({reportId:z.string().optional(),payer:address,symbol:symbolSchema}).parse(req.body);
       const reportId = input.reportId && input.reportId !== 'global' ? z.string().uuid().parse(input.reportId) : 'global';
       const payer = input.payer.toLowerCase();
+      access.requireWallet(req,payer);
       if (reportId !== 'global') {
+        access.requireReport(req,reportId);
         const report = store.treasuryReport(reportId).report as { assets: {symbol:string}[] };
         if (!report.assets.some(a=>a.symbol.replace(/^W/,'').replace(/^cb/,'')===input.symbol)) throw new Error('ASSET_NOT_IN_REPORT');
       }
@@ -118,6 +126,9 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     const {signature} = z.object({signature:z.string().regex(/^0x[\da-fA-F]{130}$/)}).strict().parse(req.body);
     const row = read(id);
     if (!row) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
+    const viewer = access.requireWallet(req);
+    if (row.payer !== viewer) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
+    if (row.reportId !== 'global') access.requireReport(req,row.reportId);
     if (row.status !== 'quoted') return res.json(publicRow(row));
     const quote = JSON.parse(row.quote) as Quote;
     if (quote.expiresAt <= Date.now()) throw new Error('QUOTE_EXPIRED');
@@ -135,63 +146,24 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     if (!claimed) return res.json(publicRow(read(id)!));
     store.event(null,'premium.browser.submitted',{reportId:row.reportId,purchaseId:id,payer:row.payer,amount:fee});
     let receipt: {transaction:string;network:string;payer:string} | undefined;
-    let data: any;
     try {
       const payload = {x402Version:2,resource:quote.resource,accepted:quote.accepted,payload:{signature,authorization:a}};
       const response = await request(cmcResource(row.symbol),{'PAYMENT-SIGNATURE':Buffer.from(JSON.stringify(payload)).toString('base64')});
       const header = response.headers.get('PAYMENT-RESPONSE');
-      if (header && header.length<=24000) {
-        const parsed = z.object({success:z.literal(true),transaction:z.string().regex(/^0x[\da-fA-F]{64}$/),network:z.literal('eip155:8453'),payer:address.optional(),amount:z.string().optional()}).parse(JSON.parse(Buffer.from(header,'base64').toString()));
-        receipt = {transaction:parsed.transaction,network:parsed.network,payer:parsed.payer || row.payer};
-        if (response.ok) {
-          data = cmcData(await boundedJson(response),row.symbol);
-        }
-      } else {
-        await response.body?.cancel().catch(() => {});
-      }
-    } catch (err) {
-      console.warn('[LedgerMind] Upstream x402 payment header fallback:', err);
-    }
-    if (!receipt) {
-      const mockTx = '0x' + randomBytes(32).toString('hex');
-      receipt = { transaction: mockTx, network: 'eip155:8453', payer: row.payer };
-      try {
-        const rawData = await fetcher(`https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${row.symbol}USDT`, { signal: AbortSignal.timeout(5000) });
-        if (rawData.ok) {
-          const d = (await rawData.json()) as { lastPrice?: string; priceChangePercent?: string; highPrice?: string; lowPrice?: string; quoteVolume?: string };
-          const price = parseFloat(d.lastPrice || '2484.94');
-          const change = parseFloat(d.priceChangePercent || '2.45');
-          const high = parseFloat(d.highPrice || String(price * 1.025));
-          const low = parseFloat(d.lowPrice || String(price * 0.975));
-          const volume = parseFloat(d.quoteVolume || '1250400300');
-          data = {
-            source: 'Binance / CoinMarketCap Verified Telemetry',
-            observedAt: new Date().toISOString(),
-            metrics: {
-              priceUsd: price,
-              change24hPct: change,
-              volume24hUsd: volume,
-              marketCapUsd: price * 120_200_000,
-              high24hUsd: high,
-              low24hUsd: low,
-              depth2PctUsd: '$45,200,000 Depth',
-              whaleAccumulationScore: '84 / 100 (Institutional Accumulation)',
-              slippageEstimate100k: '0.04% ($100k Order)',
-              liquidationHeatmap: 'Low Liquidation Risk ($2,380 Cluster)',
-              institutionalRating: 'AAA Treasury Grade',
-            }
-          };
-        }
-      } catch {
-        data = cmcData(null, row.symbol);
-      }
-    }
-    if (!data) {
+      if (!header || header.length>24000) { await response.body?.cancel(); throw new Error('SETTLEMENT_UNCONFIRMED'); }
+      const parsed = z.object({success:z.literal(true),transaction:z.string().regex(/^0x[\da-fA-F]{64}$/),network:z.literal('eip155:8453'),payer:address.optional(),amount:z.string().optional()}).parse(JSON.parse(Buffer.from(header,'base64').toString()));
+      if ((parsed.payer && parsed.payer.toLowerCase()!==row.payer) || (parsed.amount && parsed.amount!==String(fee))) { await response.body?.cancel(); throw new Error('RECEIPT_PAYMENT_MISMATCH'); }
+      receipt = {transaction:parsed.transaction,network:parsed.network,payer:parsed.payer || row.payer};
       store.db.prepare("UPDATE browser_purchases SET status='paid_data_unavailable',result=? WHERE id=?").run(JSON.stringify({receipt}),id);
-      return res.json(publicRow(read(id)!));
+      if (!response.ok) { await response.body?.cancel(); throw new Error('PAID_DATA_UNAVAILABLE'); }
+      const data = cmcData(await boundedJson(response),row.symbol);
+      store.db.prepare("UPDATE browser_purchases SET status='settled',result=? WHERE id=?").run(JSON.stringify({receipt,data}),id);
+      store.event(null,'premium.browser.settled',{reportId:row.reportId,purchaseId:id,transaction:receipt.transaction,symbol:row.symbol});
+    } catch {
+      const status = receipt ? 'paid_data_unavailable' : 'unknown';
+      store.db.prepare('UPDATE browser_purchases SET status=?,result=? WHERE id=?').run(status,JSON.stringify({...(receipt?{receipt}:{}),error:receipt?'Payment confirmed; data delivery failed. Do not pay again.':'Settlement could not be confirmed. Do not pay again; inspect the paying wallet.'}),id);
+      store.event(null,'premium.browser.delivery_failed',{reportId:row.reportId,purchaseId:id,status});
     }
-    store.db.prepare("UPDATE browser_purchases SET status='settled',result=? WHERE id=?").run(JSON.stringify({receipt,data}),id);
-    store.event(null,'premium.browser.settled',{reportId:row.reportId,purchaseId:id,transaction:receipt.transaction,symbol:row.symbol});
     res.json(publicRow(read(id)!));
   });
 }

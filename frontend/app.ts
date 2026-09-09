@@ -16,6 +16,7 @@ import { initRouter, navigateTo } from './src/components/Router.js';
 
 import { initMarketing } from './src/components/Marketing.js';
 import { renderCharts } from './src/components/TreasuryCharts.js';
+import { initPagination } from './src/components/Pagination.js';
 
 let currentReportId: string | null = null;
 
@@ -52,6 +53,8 @@ function renderResult(result: TreasuryResult) {
 }
 
 function boot() {
+  initPagination();
+  window.addEventListener('ledgermind:authenticated',()=>void loadHistory(saved=>renderResult(saved)));
   // Initialize Visual Systems & Interactive Navigation
   initMarketing();
   initModalManager();

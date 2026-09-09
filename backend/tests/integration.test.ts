@@ -60,7 +60,8 @@ test('HTTP demo: 402, $0.06 full research, $0.04 limit, $0 free, export and idem
       events: unknown[];
     };
     assert.ok(audit.integrityValid);
-    assert.ok(audit.events.length > 10);
+    assert.ok(system.store.audit().length > 10);
+    assert.deepEqual(audit.events, []); // A new anonymous session cannot export other sessions' data.
     assert.ok(!JSON.stringify(audit).includes('X-LedgerMind-Receipt'));
   } finally {
     await system.close();

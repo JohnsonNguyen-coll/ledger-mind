@@ -28,7 +28,7 @@ async function harness(options:{missingReceipt?:boolean;badData?:boolean;badChal
     const receipt=Buffer.from(JSON.stringify({success:true,transaction:tx,network:'eip155:8453',payer:wallet.address})).toString('base64');
     return Response.json(options.badData?{}:{status:{error_code:0},data:{'1027':{id:1027,symbol:'ETH',quote:{USD:{price:2200,volume_24h:100000,percent_change_24h:2,market_cap:999999,last_updated:new Date().toISOString()}}}}},{headers:options.missingReceipt?{}:{'PAYMENT-RESPONSE':receipt}});
   };
-  const app=express();app.use(express.json());installBrowserPremium(app,store,config,'test-token',fetcher);
+  const app=express();app.use(express.json());installBrowserPremium(app,store,config,'test-token',{requireWallet:()=>wallet.address.toLowerCase(),requireReport:()=>{}},fetcher);
   app.use((error:Error,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{res.status(400).json({error:error.message});});
   const server=app.listen(0,'127.0.0.1');await once(server,'listening');
   const url=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
@@ -84,7 +84,7 @@ test('browser premium: requires session token and report asset; recovery never r
     assert.equal((await h.post('/api/premium/quote',{reportId:h.report.id,payer:wallet.address,symbol:'ETH'},'wrong')).body.error,'SESSION_TOKEN_REQUIRED');
     assert.equal((await h.post('/api/premium/quote',{reportId:h.report.id,payer:wallet.address,symbol:'SOL'})).body.error,'ASSET_NOT_IN_REPORT');
     const q=(await h.quote()).body;h.store.db.prepare("UPDATE browser_purchases SET status='submitting' WHERE id=?").run(q.id);
-    installBrowserPremium(express(),h.store,testConfig(),'test-token');
+    installBrowserPremium(express(),h.store,testConfig(),'test-token',{requireWallet:()=>wallet.address.toLowerCase(),requireReport:()=>{}});
     assert.equal((await h.quote()).body.status,'unknown');assert.equal(h.paidCalls(),0);
   }finally{await h.close();}
 });

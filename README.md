@@ -207,3 +207,11 @@ Browser verification is available with `node --import tsx backend/scripts/verify
 - [Architecture](backend/docs/ARCHITECTURE.md)
 - [Demo walkthrough](backend/docs/DEMO.md)
 - [x402 paid data](backend/docs/X402.md)
+
+### Private reports and premium purchases
+
+Connect the wallet, then sign the login challenge to prove ownership. This login signature does not authorize a payment; paying requires a separate confirmation. Premium history and receipts are restricted to the authenticated paying wallet, including purchases with `reportId: global`. Here `global` means a standalone market purchase, not public access.
+
+Anonymous reports belong to the current browser session. Signing in attaches those reports to that wallet. Report URLs, downloads, and report-based actions enforce ownership on the server. Sessions expire after seven days. Legacy reports without recorded ownership remain stored but are hidden; they are not automatically assigned to the next visitor.
+
+The WalletConnect project ID is public application configuration, not a user ID or an access-control mechanism. Legacy operator/task APIs still require a separate authorization review before a public multi-user deployment.

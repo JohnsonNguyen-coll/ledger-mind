@@ -1,6 +1,10 @@
 import type { TreasuryResult } from '../types/treasury.js';
 import { fetchReports, fetchReportById } from '../api/client.js';
 import { $, shortAddress } from '../utils/formatters.js';
+import { createPagination } from './Pagination.js';
+
+let historyRequest = 0;
+let historyPager: ReturnType<typeof createPagination> | undefined;
 
 export function renderSources(result: TreasuryResult) {
   const host = $('sources');
@@ -16,16 +20,28 @@ export function renderSources(result: TreasuryResult) {
   }
 }
 
-export async function loadHistory(onSelectReport: (report: TreasuryResult) => void) {
+export async function loadHistory(onSelectReport: (report: TreasuryResult) => void, page = 1) {
   const host = $('history-list');
+  const request = ++historyRequest;
+  historyPager?.nav.remove();
+  historyPager = createPagination('Report history', next => void loadHistory(onSelectReport, next));
+  host.after(historyPager.nav);
+  historyPager.nav.hidden = true;
+  host.setAttribute('aria-busy', 'true');
   let result;
   try {
-    result = await fetchReports();
+    result = await fetchReports(page);
+    if (request !== historyRequest) return;
   } catch {
+    if (request !== historyRequest) return;
     host.className = 'history-list empty-state';
     host.textContent = 'Report history unavailable. Select Refresh to retry.';
+    host.removeAttribute('aria-busy');
     return;
   }
+  host.removeAttribute('aria-busy');
+  const meta = result.pagination || {page:1,total:result.reports.length,pageSize:10};
+  historyPager.update(meta.page, meta.total, meta.pageSize);
   host.replaceChildren();
 
   if (!result.reports.length) {

@@ -11,6 +11,7 @@ import { databaseIdentity } from './instance.js';
 import { checkModel } from './agent/check-model.js';
 import { mismatchedTaskSymbol } from './agent/task-symbol.js';
 import { installBrowserPremium } from './payments/browser-premium.js';
+import { installReportAccess } from './report-access.js';
 
 export function createApp(config: Config, store: Store, runner: AgentRunner, services: Service[]) {
   const app = express();
@@ -20,7 +21,12 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
   app.use((req, res, next) => {
     const origin = req.header('Origin');
     if (origin) {
-      if (!/^(https?:\/\/)?(localhost|127\.0\.0\.1|.*\.railway\.app|.*\.vercel\.app)(:\d+)?$/i.test(origin)) {
+      let sameHost = false;
+      try {
+        const parsed = new URL(origin);
+        sameHost = ['http:', 'https:'].includes(parsed.protocol) && parsed.host === req.headers.host && parsed.origin === origin;
+      } catch { /* Invalid origins are rejected. */ }
+      if (!sameHost) {
         return res.status(403).json({ error: 'ORIGIN_REJECTED' });
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -40,6 +46,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     next();
   });
   app.use(express.json({ limit: '8kb' }));
+  const reportAccess = installReportAccess(app, store, token);
   app.get('/api/health', (_req, res) =>
     res.json({ ok: true, name: 'LedgerMind', processId: process.pid, databaseId }),
   );
@@ -59,7 +66,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     }),
   );
   app.get('/api/overview', (_req, res) => res.json({ ...store.overview(), tasks: store.tasks() }));
-  installBrowserPremium(app, store, config, token);
+  installBrowserPremium(app, store, config, token, reportAccess);
 
   const erc20BalanceCall = (wallet: string) =>
     '0x70a08231' + wallet.toLowerCase().replace(/^0x/, '').padStart(64, '0');
@@ -520,11 +527,12 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       report: result,
       markdown,
     });
+    reportAccess.ownReport(req, saved.id);
     res.json({ ...result, reportId: saved.id, reportHash: saved.reportHash, markdownReport: markdown });
   });
 
-  app.get('/api/reports', (_req, res) => {
-    res.json({ reports: store.treasuryReports() });
+  app.get('/api/reports', (req, res) => {
+    res.json(reportAccess.list(req));
   });
 
   app.get('/api/reports/:id', (req, res) => {
@@ -559,6 +567,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
 
   app.post('/api/workflows/draft', (req, res) => {
     const input = z.object({ reportId: z.string().uuid() }).strict().parse(req.body);
+    reportAccess.requireReport(req, input.reportId);
     const report = store.treasuryReport(input.reportId);
     res.json({
       reportId: report.id,
@@ -575,6 +584,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
       })
       .strict()
       .parse(req.body);
+    reportAccess.requireReport(req, input.reportId);
     const saved = store.treasuryReport(input.reportId);
     const report = saved.report as {
       chain: { name: string };
@@ -1255,20 +1265,20 @@ Ensure your answer is professional, institutional-grade, concise, and directly a
     });
   });
 
-  app.get('/api/audit/export', (_req, res) => {
+  app.get('/api/audit/export', (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="ledgermind-audit.json"');
     res.json({
       schemaVersion: 1,
       paymentMode: config.paymentMode,
       exportedAt: new Date().toISOString(),
       integrityValid: store.verifyAudit(),
-      note: 'Hash chain detects modifications against a trusted checkpoint; it is not an external notarization.',
-      events: store.audit(),
+      note: 'Filtered to reports accessible in this session. This is not a complete hash chain or external notarization.',
+      events: store.audit().filter(event => { try { const detail = JSON.parse(event.detail); return typeof detail.reportId === 'string' && reportAccess.canRead(req, detail.reportId); } catch { return false; } }),
     });
   });
   app.use(express.static(resolve('dist/frontend')));
   app.use(express.static(resolve('frontend')));
-  app.get(['/dashboard', '/docs', '/overview', '/assets', '/risk-audit', '/copilot'], (_req, res) => {
+  app.get(['/dashboard', '/docs', '/overview', '/assets', '/risk-audit', '/copilot', '/premium'], (_req, res) => {
     const distIndex = resolve('dist/frontend/index.html');
     const devIndex = resolve('frontend/index.html');
     res.sendFile(distIndex, (err) => {
@@ -1279,7 +1289,7 @@ Ensure your answer is professional, institutional-grade, concise, and directly a
     (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       const code = errorCode(error);
       res
-        .status(code === 'TASK_NOT_FOUND' ? 404 : code === 'IDEMPOTENCY_CONFLICT' ? 409 : 400)
+        .status(code === 'TASK_NOT_FOUND' || code === 'REPORT_NOT_FOUND' || code === 'PURCHASE_NOT_FOUND' ? 404 : code === 'WALLET_SIGN_IN_REQUIRED' ? 401 : code === 'IDEMPOTENCY_CONFLICT' ? 409 : 400)
         .json({ error: error instanceof z.ZodError ? 'INVALID_INPUT' : code });
     },
   );

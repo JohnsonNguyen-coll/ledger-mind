@@ -12,3 +12,11 @@
 @import './css/components/table.css';
 @import './css/responsive.css';
 @import './css/redesign.css';
+
+/* Shared pagination for dashboard lists, tables and history. */
+.pagination { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; padding:16px 0 4px; font-size:12px; color:var(--text-secondary, #a5b4c3); }
+.pagination[hidden], [hidden] { display:none !important; }
+.pagination button { font:inherit; color:inherit; border:1px solid var(--border-color, #34404e); border-radius:8px; background:transparent; padding:8px 12px; cursor:pointer; min-height:36px; }
+.pagination button:hover:not(:disabled), .pagination button:focus-visible { border-color:#64d8be; color:#64d8be; }
+.pagination button:disabled { opacity:.35; cursor:default; }
+@media(max-width:560px) { .pagination { justify-content:center; gap:8px; } .pagination span { order:-1; flex-basis:100%; text-align:center; } }

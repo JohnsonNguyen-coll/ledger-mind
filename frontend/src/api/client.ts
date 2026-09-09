@@ -21,8 +21,8 @@ export async function analyzeTreasury(params: {
   });
 }
 
-export async function fetchReports(): Promise<{ reports: ReportSummary[] }> {
-  return api<{ reports: ReportSummary[] }>('/api/reports');
+export async function fetchReports(page = 1): Promise<{ reports: ReportSummary[]; pagination?: {page:number;total:number;pageSize:number} }> {
+  return api(`/api/reports?page=${page}&pageSize=10`);
 }
 
 export async function fetchReportById(id: string): Promise<{ report: TreasuryResult }> {

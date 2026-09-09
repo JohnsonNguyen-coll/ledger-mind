@@ -113,7 +113,55 @@ try {
   assert.equal(await page.locator('.flow-row').count(), 2);
   assert.equal(await page.locator('#analysis-modal').getAttribute('class'), 'modal-backdrop');
   await page.screenshot({ path: 'data/ui-check/dashboard-desktop.png', fullPage: true });
+  // Exercise long lists, final pages and replacement with a shorter report.
+  for (const [id, rowClass, route, size] of [
+    ['allocation-bars','asset-row','/dashboard',8],
+    ['cashflow-chart','flow-row','/dashboard',10],
+    ['risks','risk-item','/risk-audit',5],
+    ['audit-list','audit-row','/risk-audit',10],
+    ['sources','source-item','/risk-audit',6],
+    ['transactions','','/assets',10],
+  ] as const) {
+    await page.locator(`.tab-btn[data-route="${route}"]`).click();
+    if(id==='sources')await page.locator('.topbar-actions [data-open-modal="analysis-modal"]').click();
+    await page.evaluate(({id,rowClass})=>{
+      const host=document.getElementById(id)!;host.replaceChildren();
+      for(let i=0;i<23;i++){
+        const row=document.createElement(id==='transactions'?'tr':'div');row.className=rowClass;
+        if(id==='transactions'){const td=document.createElement('td');td.textContent=`Item ${i+1}`;row.append(td);}else row.textContent=`Item ${i+1}`;
+        host.append(row);
+      }
+    },{id,rowClass});
+    const pager=page.getByRole('navigation',{name:`${id.replaceAll('-',' ')} pagination`,exact:true});
+    await pager.waitFor();
+    assert.equal(await page.locator(`#${id} > :not([hidden])`).count(),size);
+    for(let i=1;i<Math.ceil(23/size);i++)await pager.getByRole('button',{name:'Next',exact:true}).click();
+    assert.equal(await page.locator(`#${id} > :not([hidden])`).count(),23%size || size);
+    assert.equal(await pager.getByRole('button',{name:'Next',exact:true}).isDisabled(),true);
+    await page.evaluate(id=>{const host=document.getElementById(id)!;host.replaceChildren(host.firstElementChild!);},id);
+    await pager.waitFor({state:'hidden'});
+    assert.equal(await page.locator(`#${id} > :not([hidden])`).count(),1);
+    if(id==='sources')await page.keyboard.press('Escape');
+  }
+  await page.route('**/api/reports?*',route=>{
+    const requested=Number(new URL(route.request().url()).searchParams.get('page') || 1);
+    const reports=Array.from({length:23},(_,i)=>({id:String(i),walletAddress:'0x'+'11'.repeat(20),chainId:8453,createdAt:new Date().toISOString(),summary:`Saved report ${i+1}`}));
+    return route.fulfill({json:{reports:reports.slice((requested-1)*10,requested*10),pagination:{page:requested,total:23,pageSize:10}}});
+  });
+  await page.locator('[data-open-modal="history-modal"]').click();
+  await page.locator('#refresh-history').click();
+  const historyPager=page.getByRole('navigation',{name:'Report history pagination',exact:true});
+  await historyPager.waitFor();
+  assert.equal(await page.locator('.history-item').count(),10);
+  await historyPager.getByRole('button',{name:'Next',exact:true}).click();
+  await page.getByText('Saved report 11',{exact:true}).waitFor();
+  await page.getByRole('navigation',{name:'Report history pagination',exact:true}).getByRole('button',{name:'Next',exact:true}).click();
+  await page.getByText('Saved report 23',{exact:true}).waitFor();
+  assert.equal(await page.locator('.history-item').count(),3);
   await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'data/ui-check/pagination-mobile.png',fullPage:true});
+  await page.keyboard.press('Escape');
   for (const path of ['/', '/docs', '/dashboard']) {
     await page.goto(system.url + path);
     assert.equal(
