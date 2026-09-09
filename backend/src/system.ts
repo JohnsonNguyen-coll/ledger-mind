@@ -40,6 +40,14 @@ export async function startSystem(config: Config) {
   const servers: Server[] = [];
   let store: Store | undefined;
   try {
+
+    const hasSupabase = Boolean(config.supabaseUrl && (config.supabaseServiceRoleKey || config.supabaseAnonKey));
+    if (hasSupabase) {
+      console.log(`[Supabase] Cloud synchronization active (${config.supabaseUrl})`);
+    } else {
+      console.warn('[Supabase] Warning: SUPABASE_URL or keys not found in .env. Running in temporary local memory mode.');
+    }
+
     store = new Store(
       {
         wallet: config.wallet,
@@ -47,14 +55,16 @@ export async function startSystem(config: Config) {
         dailyBudget: config.dailyBudget,
       },
       undefined,
-      config.supabaseUrl && (config.supabaseServiceRoleKey || config.supabaseAnonKey)
+      hasSupabase
         ? {
             url: config.supabaseUrl,
             key: config.supabaseServiceRoleKey || config.supabaseAnonKey,
           }
         : undefined,
     );
-    await store.pullFromSupabase();
+    if (hasSupabase) {
+      await store.pullFromSupabase();
+    }
     store.recover();
     const secret = randomBytes(32).toString('hex');
     const services = config.paymentMode === 'mock' ? mockServices() : realServices;

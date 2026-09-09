@@ -543,7 +543,7 @@ export class Store {
   async syncToSupabase(table: string, payload: unknown): Promise<void> {
     if (!this.supabase) return;
     try {
-      await fetch(`${this.supabase.url}/rest/v1/${table}`, {
+      const res = await fetch(`${this.supabase.url}/rest/v1/${table}`, {
         method: 'POST',
         headers: {
           apikey: this.supabase.key,
@@ -554,8 +554,14 @@ export class Store {
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(5000),
       });
-    } catch {
-      // Best-effort network persistence
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error(`[Supabase Sync Error] Table "${table}" HTTP ${res.status}:`, errText);
+      } else {
+        console.log(`[Supabase] Synced record to "${table}" successfully.`);
+      }
+    } catch (err: any) {
+      console.error(`[Supabase Network Error] Table "${table}":`, err?.message || err);
     }
   }
 
@@ -567,12 +573,24 @@ export class Store {
         Authorization: `Bearer ${this.supabase.key}`,
       };
 
-      const [reportsRes, purchasesRes] = await Promise.all([
+      const [reportsRes, purchasesRes, ownersRes, tasksRes, paymentsRes] = await Promise.all([
         fetch(`${this.supabase.url}/rest/v1/treasury_reports?select=*&order=createdAt.desc&limit=100`, {
           headers,
           signal: AbortSignal.timeout(5000),
         }),
         fetch(`${this.supabase.url}/rest/v1/browser_purchases?select=*&order=createdAt.desc&limit=100`, {
+          headers,
+          signal: AbortSignal.timeout(5000),
+        }),
+        fetch(`${this.supabase.url}/rest/v1/report_owners?select=*&limit=500`, {
+          headers,
+          signal: AbortSignal.timeout(5000),
+        }),
+        fetch(`${this.supabase.url}/rest/v1/tasks?select=*&order=createdAt.desc&limit=100`, {
+          headers,
+          signal: AbortSignal.timeout(5000),
+        }),
+        fetch(`${this.supabase.url}/rest/v1/payments?select=*&limit=200`, {
           headers,
           signal: AbortSignal.timeout(5000),
         }),
@@ -595,8 +613,36 @@ export class Store {
           }
         }
       }
-    } catch {
-      // Best-effort startup hydration
+
+      if (ownersRes.ok) {
+        const owners = (await ownersRes.json()) as any[];
+        if (Array.isArray(owners)) {
+          for (const o of owners) {
+            this.db.reportOwners.set(o.reportId, o);
+          }
+        }
+      }
+
+      if (tasksRes.ok) {
+        const tasks = (await tasksRes.json()) as any[];
+        if (Array.isArray(tasks)) {
+          for (const t of tasks) {
+            this.db.tasks.set(t.id, t);
+          }
+        }
+      }
+
+      if (paymentsRes.ok) {
+        const payments = (await paymentsRes.json()) as any[];
+        if (Array.isArray(payments)) {
+          for (const pay of payments) {
+            this.db.payments.set(pay.id, pay);
+          }
+        }
+      }
+      console.log(`[Supabase] Hydrated ${this.db.treasuryReports.size} reports and ${this.db.browserPurchases.size} purchases from cloud.`);
+    } catch (err: any) {
+      console.error('[Supabase Hydration Error]:', err?.message || err);
     }
   }
 
