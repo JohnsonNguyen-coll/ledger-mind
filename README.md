@@ -215,3 +215,8 @@ Connect the wallet, then sign the login challenge to prove ownership. This login
 Anonymous reports belong to the current browser session. Signing in attaches those reports to that wallet. Report URLs, downloads, and report-based actions enforce ownership on the server. Sessions expire after seven days. Legacy reports without recorded ownership remain stored but are hidden; they are not automatically assigned to the next visitor.
 
 The WalletConnect project ID is public application configuration, not a user ID or an access-control mechanism. Legacy operator/task APIs still require a separate authorization review before a public multi-user deployment.
+
+### Wallet sign-in behind the Vercel proxy
+
+Set `APP_ORIGIN=https://ledger-mind-kappa.vercel.app` in the Railway backend variables (no trailing slash). Deploy the updated backend and frontend, then refresh the browser. The Vercel API rewrite changes the backend Host, so the exact public frontend origin must be explicitly allowed. This setting also supplies the HTTPS domain/URI in the sign-in message and enables Secure session cookies. Keep API calls on the same frontend `/api` proxy so browser session cookies remain first-party. Leave APP_ORIGIN blank for direct localhost development.
+

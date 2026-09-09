@@ -4,6 +4,10 @@ import { usd } from './money.js';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  APP_ORIGIN: z.string().trim().default('').refine(value => {
+    if (!value) return true;
+    try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && url.origin === value; } catch { return false; }
+  }, 'APP_ORIGIN must be an exact http(s) origin without a trailing slash'),
   WHALE_PORT: z.coerce.number().int().min(1).max(65535).default(4101),
   SENTIMENT_PORT: z.coerce.number().int().min(1).max(65535).default(4102),
   RISK_PORT: z.coerce.number().int().min(1).max(65535).default(4103),
@@ -51,6 +55,7 @@ export function readConfig(requireModelKey = true) {
     throw new Error('GROQ_API_KEY_REQUIRED');
   return {
     port: e.PORT,
+    appOrigin: e.APP_ORIGIN,
     servicePorts: [e.WHALE_PORT, e.SENTIMENT_PORT, e.RISK_PORT],
     databasePath: e.DATABASE_PATH,
     databaseUrl: e.DATABASE_URL,

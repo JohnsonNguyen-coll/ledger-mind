@@ -52,6 +52,11 @@ try{
   await page.getByRole('button',{name:'Connect Wallet',exact:true}).click();
   await page.screenshot({path:'data/ui-check/premium-connect.png'});
   await page.getByRole('button',{name:/Browser Wallet|Test Wallet|Injected/}).first().click();
+  await page.route('**/api/wallet/nonce',route=>route.fulfill({status:403,json:{error:'ORIGIN_REJECTED'}}));
+  await page.getByRole('button',{name:'Sign in with wallet',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'Configure APP_ORIGIN'}).waitFor();
+  assert.equal(await page.getByRole('alert').filter({hasText:'cancelled'}).count(),0);
+  await page.unroute('**/api/wallet/nonce');
   await page.getByRole('button',{name:'Sign in with wallet',exact:true}).click({timeout:10000}).catch(async error=>{console.error(errors,await page.locator('body').innerText());throw error;});
   await page.getByRole('button',{name:/Switch to Base & get quote|Get premium quote/}).click();
   await page.getByRole('button',{name:'Confirm & pay 0.01 USDC'}).waitFor();

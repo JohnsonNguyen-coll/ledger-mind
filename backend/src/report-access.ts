@@ -7,12 +7,12 @@ import type { Store } from './store.js';
 type Session = {id:string;tokenHash:string;wallet:string|null;expiresAt:number;nonce:string|null;message:string|null;nonceExpiresAt:number|null};
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const lifetime=7*24*60*60*1000;
-export function installReportAccess(app:Express,store:Store,csrf:string){
+export function installReportAccess(app:Express,store:Store,csrf:string,appOrigin=''){
   store.db.exec(`CREATE TABLE IF NOT EXISTS web_sessions (id TEXT PRIMARY KEY, tokenHash TEXT NOT NULL UNIQUE, wallet TEXT, expiresAt INTEGER NOT NULL, nonce TEXT, message TEXT, nonceExpiresAt INTEGER);
     CREATE TABLE IF NOT EXISTS report_owners (reportId TEXT PRIMARY KEY REFERENCES treasury_reports(id), sessionId TEXT NOT NULL, wallet TEXT);
     CREATE INDEX IF NOT EXISTS report_owners_wallet ON report_owners(wallet);`);
   const sessions=new WeakMap<Request,Session>();
-  const setCookie=(res:Response,value:string)=>res.cookie('lm_session',value,{httpOnly:true,sameSite:'strict',path:'/',maxAge:lifetime});
+  const setCookie=(res:Response,value:string)=>res.cookie('lm_session',value,{httpOnly:true,secure:appOrigin.startsWith('https://') || res.req.secure,sameSite:'strict',path:'/',maxAge:lifetime});
   const issue=(res:Response)=>{
     const value=randomBytes(32).toString('hex');const session:Session={id:randomUUID(),tokenHash:digest(value),wallet:null,expiresAt:Date.now()+lifetime,nonce:null,message:null,nonceExpiresAt:null};
     store.db.prepare('INSERT INTO web_sessions(id,tokenHash,expiresAt) VALUES (?,?,?)').run(session.id,session.tokenHash,session.expiresAt);setCookie(res,value);return session;
@@ -47,7 +47,8 @@ export function installReportAccess(app:Express,store:Store,csrf:string){
     auth(req);const {wallet}=z.object({wallet:z.string().regex(/^0x[\da-fA-F]{40}$/)}).strict().parse(req.body);const session=get(req);
     if(session.wallet && session.wallet!==wallet.toLowerCase())throw new Error('SIGN_OUT_BEFORE_CHANGING_WALLET');
     const nonce=randomBytes(16).toString('hex');const expires=Date.now()+300000;
-    const message=`${req.headers.host} wants you to sign in with your Ethereum account:\n${wallet}\n\nSign in to LedgerMind to access your private reports and premium purchases. This does not authorize a payment.\n\nURI: http://${req.headers.host}\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpiration Time: ${new Date(expires).toISOString()}`;
+    const loginOrigin=appOrigin || `${req.protocol}://${req.headers.host}`;
+    const message=`${new URL(loginOrigin).host} wants you to sign in with your Ethereum account:\n${wallet}\n\nSign in to LedgerMind to access your private reports and premium purchases. This does not authorize a payment.\n\nURI: ${loginOrigin}\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpiration Time: ${new Date(expires).toISOString()}`;
     store.db.prepare('UPDATE web_sessions SET nonce=?,message=?,nonceExpiresAt=? WHERE id=?').run(nonce,message,expires,session.id);res.json({message});
   });
   app.post('/api/wallet/login',async(req,res)=>{

@@ -26,13 +26,14 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
         const parsed = new URL(origin);
         sameHost = ['http:', 'https:'].includes(parsed.protocol) && parsed.host === req.headers.host && parsed.origin === origin;
       } catch { /* Invalid origins are rejected. */ }
-      if (!sameHost) {
+      if (!sameHost && origin !== config.appOrigin) {
         return res.status(403).json({ error: 'ORIGIN_REJECTED' });
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-csrf-token');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-LedgerMind-Token');
+      res.vary('Origin');
     }
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
@@ -46,7 +47,7 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     next();
   });
   app.use(express.json({ limit: '8kb' }));
-  const reportAccess = installReportAccess(app, store, token);
+  const reportAccess = installReportAccess(app, store, token, config.appOrigin);
   app.get('/api/health', (_req, res) =>
     res.json({ ok: true, name: 'LedgerMind', processId: process.pid, databaseId }),
   );

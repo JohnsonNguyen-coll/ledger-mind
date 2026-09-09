@@ -74,6 +74,23 @@ test('report pagination reaches older reports and counts only the current owner'
   }finally{await system.close();}
 });
 
+test('configured frontend proxy can request a sign-in challenge, other origins stay blocked',async()=>{
+  const origin='https://ledger-mind-kappa.vercel.app';
+  const system=await startSystem(testConfig({appOrigin:origin}));try{
+    const config=await fetch(system.url+'/api/config',{headers:{Origin:origin}});
+    const {csrfToken}=await config.json();
+    assert.match(config.headers.getSetCookie()[0]!,/Secure/);
+    const response=await fetch(system.url+'/api/wallet/nonce',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-LedgerMind-Token':csrfToken},body:JSON.stringify({wallet:alice.address})});
+    assert.equal(response.status,200);
+    const {message}=await response.json();
+    assert.ok(message.startsWith('ledger-mind-kappa.vercel.app wants you'));
+    assert.ok(message.includes(`URI: ${origin}`));
+    const preflight=await fetch(system.url+'/api/wallet/nonce',{method:'OPTIONS',headers:{Origin:origin,'Access-Control-Request-Headers':'x-ledgermind-token'}});
+    assert.equal(preflight.status,204);assert.match(preflight.headers.get('Access-Control-Allow-Headers')!,/X-LedgerMind-Token/);
+    for(const hostile of ['https://evil.vercel.app',origin+'.evil.example'])assert.equal((await fetch(system.url+'/api/wallet/nonce',{method:'POST',headers:{Origin:hostile,'X-Forwarded-Host':'ledger-mind-kappa.vercel.app'}})).status,403);
+  }finally{await system.close();}
+});
+
 test('sign-in challenges reject another wallet and cannot be replayed',async()=>{
   const system=await startSystem(testConfig());try{
     const a=await client(system.url);let nonce=(await a.request('/api/wallet/nonce',{wallet:alice.address})).data.message;

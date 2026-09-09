@@ -2,6 +2,7 @@ import type { Config } from '../src/config.js';
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return {
     port: 0,
+    appOrigin: '',
     servicePorts: [0, 0, 0],
     databasePath: ':memory:',
     databaseUrl: '',

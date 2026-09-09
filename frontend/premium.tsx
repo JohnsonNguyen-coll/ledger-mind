@@ -15,6 +15,8 @@ type Settings = {csrfToken:string;browserPremiumEnabled:boolean;walletConnectPro
 type Purchase = {id:string;reportId:string;payer:string;symbol:string;status:string;quote:{expiresAt:number;amount:string;payTo:string;asset:string;network:string;balance:string;authorization:{from:string;to:string;value:string;validAfter:string;validBefore:string;nonce:string}};result:null|{receipt?:{transaction:string;network:string;payer:string};data?:{source:string;observedAt:string;metrics:Record<string,number|string>};error?:string}};
 declare global { interface Window { ledgerMindReport?: TreasuryResult } }
 const messages: Record<string,string> = {
+  ORIGIN_REJECTED:'The server blocked this website. Configure APP_ORIGIN on the backend to match this site. Your wallet has not been asked to sign.',
+  SESSION_TOKEN_REQUIRED:'Your server session changed. Refresh this page and sign in again. Your wallet has not been asked to sign.',
   INSUFFICIENT_USDC_ON_BASE:'Your paying wallet needs at least 0.01 USDC on Base.',
   SMART_WALLET_NOT_SUPPORTED_USE_EOA:'This payment currently supports standard externally owned wallets. Use an EOA wallet for this purchase.',
   QUOTE_EXPIRED:'This quote has expired. Request a new quote before signing.',
@@ -94,7 +96,14 @@ function Premium({settings,config}:{settings:Settings;config:ReturnType<typeof c
     if(locked.current)return; locked.current=true;setBusy(label);setError('');
     try{await fn();}catch(e){
       const message = e instanceof Error ? e.message : 'Request failed';
-      setError(/reject|denied|4001/i.test(message)?'Request cancelled in your wallet. No new signature was submitted.':message);
+      let cause: unknown = e;
+      let cancelled = false;
+      for(let depth=0;depth<8 && cause && typeof cause==='object';depth++) {
+        const detail=cause as {code?:number;name?:string;cause?:unknown};
+        if(detail.code===4001 || detail.name==='UserRejectedRequestError')cancelled=true;
+        cause=detail.cause;
+      }
+      setError(cancelled?'Request cancelled in your wallet. No new signature was submitted.':message);
     }finally{locked.current=false;setBusy('');}
   };
   const getQuote = () => action('Checking balance and merchant quote…',async()=>{
