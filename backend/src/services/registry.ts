@@ -31,7 +31,7 @@ export function mockServices(): Service[] {
   ];
 }
 
-/** Chỉ cung cấp tool thật đã cấu hình; không đổi tên mock whale thành dữ liệu thật. */
+/** Only exposes configured live tools; does not disguise mock services as live data. */
 export const realServices: Service[] = [
   {
     id: 'cmc_quote',

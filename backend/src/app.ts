@@ -1034,9 +1034,6 @@ export function createApp(config: Config, store: Store, runner: AgentRunner, ser
     const btcPrice = cachedTickers.find((t) => t.symbol === 'BTC')?.price ?? 68450.21;
     const groqKey = process.env.GROQ_API_KEY || config.groqKey;
     const groqModel = process.env.GROQ_MODEL || config.model || 'llama-3.3-70b-versatile';
-    const geminiKey = process.env.GEMINI_API_KEY || config.geminiKey;
-    const openrouterKey = process.env.OPENROUTER_API_KEY || config.openrouterKey;
-    const openrouterModel = process.env.OPENROUTER_MODEL || config.model || 'openrouter/free';
 
     const systemPrompt = `You are LedgerMind — an autonomous institutional crypto intelligence AI agent running inside the LedgerMind Treasury Platform.
 You monitor real-time treasury movements, Binance market structure (orderbook depth, open interest, funding rates), portfolio risk, and on-chain telemetry.
@@ -1146,106 +1143,9 @@ Ensure your answer is professional, institutional-grade, concise, and directly a
       return null;
     };
 
-    const callGemini = async (): Promise<Record<string, unknown> | null> => {
-      if (!geminiKey) return null;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      try {
-        const r = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-          {
-            method: 'POST',
-            headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: 'user', parts: [{ text: query }] }],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.2,
-                thinkingConfig: { thinkingBudget: 1024 },
-              },
-            }),
-            signal: controller.signal,
-          },
-        );
-        clearTimeout(timeout);
-        if (r.ok) {
-          const data = (await r.json()) as {
-            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-          };
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-          const parsed = extractJsonPayload(rawText);
-          if (parsed) {
-            return {
-              model: 'gemini-3.6-flash',
-              provider: 'Google AI Studio',
-              liveAi: true,
-              ...parsed,
-              plan: normalizePlan(parsed.plan),
-            };
-          }
-        }
-      } catch (err) {
-        console.warn('[LedgerMind AI] Gemini error:', err);
-      } finally {
-        clearTimeout(timeout);
-      }
-      return null;
-    };
-
-    const callOpenRouter = async () => {
-      if (!openrouterKey) return null;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      try {
-        const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openrouterKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: openrouterModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: query },
-            ],
-            response_format: { type: 'json_object' },
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (r.ok) {
-          const data = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
-          const raw = data.choices?.[0]?.message?.content ?? '';
-          const parsed = extractJsonPayload(raw);
-          if (parsed) {
-            return {
-              model: openrouterModel,
-              provider: 'OpenRouter',
-              liveAi: true,
-              ...parsed,
-              plan: normalizePlan(parsed.plan),
-            };
-          }
-        }
-      } catch (err) {
-        console.warn('[LedgerMind AI] OpenRouter error:', err);
-      } finally {
-        clearTimeout(timeout);
-      }
-      return null;
-    };
-
     let result: Record<string, unknown> | null = null;
     if (groqKey || config.agentMode === 'groq') {
       result = await callGroq();
-    }
-    if (!result && geminiKey) {
-      result = await callGemini();
-    }
-    if (!result && openrouterKey) {
-      result = await callOpenRouter();
     }
 
     if (result) {

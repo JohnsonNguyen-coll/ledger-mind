@@ -9,17 +9,18 @@ import {
   type Decision,
 } from './provider.js';
 
-/** OpenRouter dùng Chat Completions: assistant.tool_calls và role:tool.
- * Key chỉ gửi tới hostname cố định này. Không fallback sang OpenAI trực tiếp.
- * Giữ reasoning_details trong memory để tiếp tục tool loop, không đưa vào UI.
+/** Groq Chat Completions API with native tool calling on Groq LPU.
+ * Key is only sent to https://api.groq.com.
+ * Only validated tool calls and final text reach the executor and audit trail.
  */
-export class OpenRouterProvider implements Provider {
+export class GroqProvider implements Provider {
   private history: unknown[];
   private consumed = 0;
+
   constructor(
-    task: Task,
+    private task: Task,
     private apiKey: string,
-    private model: string,
+    private model: string = 'llama-3.3-70b-versatile',
     private fetcher: typeof fetch = fetch,
     private availableTools = tools,
   ) {
@@ -31,30 +32,35 @@ export class OpenRouterProvider implements Provider {
       { role: 'user', content: task.prompt },
     ];
   }
+
   async next(observations: Observation[]): Promise<Decision> {
-    for (const o of observations.slice(this.consumed))
+    for (const o of observations.slice(this.consumed)) {
       this.history.push({
         role: 'tool',
         tool_call_id: o.call.id,
         content: JSON.stringify(o.output),
       });
+    }
     this.consumed = observations.length;
-    const response = await this.fetcher('https://openrouter.ai/api/v1/chat/completions', {
+
+    const response = await this.fetcher('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(60_000),
-      headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         model: this.model,
         messages: this.history,
         stream: false,
         max_tokens: 1800,
         tool_choice: 'auto',
-        // Executor validates arguments and serializes payments; optional strict/parallel
-        // routing flags can unnecessarily exclude free tool-capable endpoints.
         tools: this.availableTools.map(({ type, strict, ...fn }) => ({ type, function: fn })),
       }),
     });
+
     if (!response.ok) {
       let message = '';
       try {
@@ -63,12 +69,10 @@ export class OpenRouterProvider implements Provider {
       } catch {
         /* Raw error bodies are never exposed. */
       }
-      if (/data policy|privacy|publication/i.test(message))
-        throw new Error('OPENROUTER_DATA_POLICY');
-      if (response.status === 404 && /endpoints/i.test(message))
-        throw new Error('OPENROUTER_NO_ENDPOINTS');
-      throw new Error(`OPENROUTER_HTTP_${response.status}`);
+      if (/rate limit|quota/i.test(message)) throw new Error('GROQ_RATE_LIMITED');
+      throw new Error(`GROQ_HTTP_${response.status}`);
     }
+
     const value = z
       .object({
         choices: z
@@ -78,7 +82,6 @@ export class OpenRouterProvider implements Provider {
               message: z.object({
                 role: z.literal('assistant'),
                 content: z.string().nullable().optional(),
-                reasoning_details: z.array(z.unknown()).optional(),
                 tool_calls: z
                   .array(
                     z.object({
@@ -100,18 +103,25 @@ export class OpenRouterProvider implements Provider {
         usage: z.object({ prompt_tokens: z.number(), completion_tokens: z.number() }).optional(),
       })
       .parse(await boundedJson(response));
+
     const choice = value.choices[0]!;
-    if (!['stop', 'tool_calls'].includes(choice.finish_reason ?? ''))
-      throw new Error('OPENROUTER_INCOMPLETE_RESPONSE');
+    if (!['stop', 'tool_calls'].includes(choice.finish_reason ?? '')) {
+      throw new Error('GROQ_INCOMPLETE_RESPONSE');
+    }
+
     const calls = (choice.message.tool_calls ?? []).map((c) => ({
       id: c.id,
       name: c.function.name,
       arguments: c.function.arguments,
     }));
-    if (choice.finish_reason === 'tool_calls' && !calls.length)
-      throw new Error('OPENROUTER_EMPTY_TOOL_CALLS');
-    if (new Set(calls.map((c) => c.id)).size !== calls.length)
-      throw new Error('OPENROUTER_DUPLICATE_TOOL_IDS');
+
+    if (choice.finish_reason === 'tool_calls' && !calls.length) {
+      throw new Error('GROQ_EMPTY_TOOL_CALLS');
+    }
+    if (new Set(calls.map((c) => c.id)).size !== calls.length) {
+      throw new Error('GROQ_DUPLICATE_TOOL_IDS');
+    }
+
     this.history.push(choice.message);
     return {
       calls,

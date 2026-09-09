@@ -13,12 +13,12 @@ try {
       errorCode(error) === 'DATABASE_ALREADY_IN_USE' ? await findRunningInstance(config) : null;
     if (!existing) throw error;
     console.log(
-      `\nLedgerMind đã chạy trong một phiên khác.\nMở dashboard: ${existing}\nDữ liệu hiện tại được giữ nguyên; không cần khởi động thêm server.\nNếu vừa sửa cấu hình, hãy dừng phiên cũ trước khi khởi động lại.\n`,
+      `\nLedgerMind is already running in another session.\nOpen dashboard: ${existing}\nCurrent data is preserved; no need to start an extra server.\nIf configuration was modified, stop the previous session before restarting.\n`,
     );
   }
   if (system) {
     console.log(
-      `\nLedgerMind đang chạy: ${system.url}\nAgent: ${config.agentMode} | Payment: ${config.paymentMode} | Market: ${config.marketMode}\nCtrl+C để dừng.\n`,
+      `\nLedgerMind is running: ${system.url}\nAgent: ${config.agentMode} | Payment: ${config.paymentMode} | Market: ${config.marketMode}\nPress Ctrl+C to stop.\n`,
     );
     const running = system;
     for (const signal of ['SIGINT', 'SIGTERM'] as const)
@@ -26,10 +26,10 @@ try {
   }
 } catch (error) {
   const code = errorCode(error);
-  console.error('Không thể khởi động:', code);
+  console.error('Failed to start:', code);
   if (code === 'DATABASE_ALREADY_IN_USE') {
     console.error(
-      'Một process đang giữ database nhưng chưa xác minh được dashboard tại port đã cấu hình. Hãy dừng cửa sổ LedgerMind cũ hoặc kiểm tra PORT. Không xóa database hay lock khi process còn chạy.',
+      'Another process holds the database lock but dashboard could not be verified on the configured port. Stop previous LedgerMind processes or check PORT. Do not delete the database or lock while running.',
     );
   }
   process.exitCode = 1;

@@ -87,7 +87,7 @@ Base uses ETH as its native asset. Wrapped assets retain their own tickers in re
 | Public RPC                 | Native balances and configured ERC-20 `balanceOf` calls.                         |
 | Blockscout                 | Recent native transfer sample, when available.                                   |
 | Binance public market data | Non-stable asset reference prices and BTC/ETH/BNB market tickers quoted in USDT. |
-| Storage (SQLite / Supabase) | Saved reports, task state, payment budget records, and audit events. Supports local SQLite or Cloud Supabase PostgreSQL. |
+| Storage (Supabase) | Saved reports, task state, payment budget records, and audit events. Uses Cloud Supabase PostgreSQL with high-performance memory synchronization. |
 
 - **Treasury value:** sum of tracked balances multiplied by available reference prices. Unpriced assets are excluded from the priced allocation chart.
 - **Stablecoin buffer:** tracked USDC and USDT balances valued using a fixed $1 assumption. This is not a live depeg check.
@@ -113,12 +113,12 @@ Default configuration uses built-in fallback defaults for demo and fixture modes
 | Setting | Purpose |
 | --- | --- |
 | `PORT` | Web server port; defaults to `3000`. |
-| `DATABASE_PATH` | Local SQLite database file path; defaults to `./data/ledgermind.sqlite`. |
-| `DATABASE_URL` | Supabase PostgreSQL Connection String (used for Cloud deployment on Vercel/Render/Railway). |
 | `SUPABASE_URL` | Supabase Project URL (e.g. `https://xxxx.supabase.co`). |
 | `SUPABASE_ANON_KEY` | Supabase anonymous public API key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role secret key. |
-| `AGENT_MODE` | Task runner provider: `demo`, `openai`, `openrouter`, or `gemini`. Defaults to `demo`. |
+| `AGENT_MODE` | Task runner provider: `demo` or `groq`. Defaults to `groq`. |
+| `GROQ_API_KEY` | Groq API Key for LPU inference. |
+| `GROQ_MODEL` | Groq Model; defaults to `llama-3.3-70b-versatile`. |
 | `PAYMENT_MODE` | `mock` or `binance` payment adapter. Defaults to `mock`. |
 | `REAL_PAYMENTS_ENABLED` | Explicit gate for real payments; defaults to `false`. |
 | `BROWSER_PREMIUM_ENABLED` | Enables browser x402 payment authorization modal; defaults to `true`. |
@@ -168,7 +168,7 @@ Replace the example address with the wallet you want to inspect. The API accepts
 
 ## Development
 
-The frontend uses TypeScript, native browser APIs, SVG, and modular CSS, with an isolated React/RainbowKit premium panel loaded when opening the dashboard. esbuild bundles the wallet UI into browser modules. The backend uses TypeScript, Express, Zod, viem signature verification, and SQLite.
+The frontend uses TypeScript, native browser APIs, SVG, and modular CSS, with an isolated React/RainbowKit premium panel loaded when opening the dashboard. esbuild bundles the wallet UI into browser modules. The backend uses TypeScript, Express, Zod, viem signature verification, and Supabase.
 
 ```text
 frontend/

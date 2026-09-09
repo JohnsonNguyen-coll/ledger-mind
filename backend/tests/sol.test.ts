@@ -7,7 +7,7 @@ import { cmcData, cmcResource } from '../src/services/cmc.js';
 import { mismatchedTaskSymbol } from '../src/agent/task-symbol.js';
 
 test('single-asset mismatch guard handles SOL aliases without confusing comparisons', () => {
-  for (const prompt of ['Research SOL', 'nghiên cứu solana', 'SOLUSDT price']) {
+  for (const prompt of ['Research SOL', 'research solana', 'SOLUSDT price']) {
     assert.equal(mismatchedTaskSymbol(prompt, 'ETH'), true);
     assert.equal(mismatchedTaskSymbol(prompt, 'SOL'), false);
   }

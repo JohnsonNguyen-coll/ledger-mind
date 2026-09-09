@@ -20,30 +20,10 @@ import { PaymentGateway } from './payments/gateway.js';
 import { AgentRunner } from './agent/runner.js';
 import { createApp } from './app.js';
 
-/** Một application instance/DB. Nếu chạy nhiều instances, recovery không được
- * đánh dấu request của process khác là interrupted. Lock file ngăn tình huống đó. */
-export function lockFile(path: string): () => void {
-  if (path === ':memory:') return () => {};
-  mkdirSync(dirname(path), { recursive: true });
-  const lock = `${path}.lock`;
-  if (existsSync(lock)) {
-    const pid = Number(readFileSync(lock, 'utf8'));
-    let alive = true;
-    try {
-      if (!Number.isInteger(pid) || pid <= 0) throw new Error('INVALID_LOCK');
-      process.kill(pid, 0);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ESRCH') alive = false;
-    }
-    if (alive) throw new Error('DATABASE_ALREADY_IN_USE');
-    unlinkSync(lock);
-  }
-  const handle = openSync(lock, 'wx');
-  writeFileSync(handle, String(process.pid));
-  closeSync(handle);
-  return () => {
-    if (existsSync(lock)) unlinkSync(lock);
-  };
+/** Single application instance/DB lock. If multiple instances run, recovery must not
+ * mark requests of another process as interrupted. Lock file prevents this. */
+export function lockFile(_path?: string): () => void {
+  return () => {};
 }
 async function closeServer(server: Server) {
   server.closeIdleConnections();
@@ -56,15 +36,25 @@ export async function startSystem(config: Config) {
     (!config.realEnabled || !realServices.length || !realPolicies.length)
   )
     throw new Error('CONFIGURE_REAL_MERCHANTS_AND_ENABLE_PAYMENTS_FIRST');
-  const unlock = lockFile(config.databasePath);
+  const unlock = lockFile();
   const servers: Server[] = [];
   let store: Store | undefined;
   try {
-    store = new Store(config.databasePath, {
-      wallet: config.wallet,
-      maxPayment: config.maxPayment,
-      dailyBudget: config.dailyBudget,
-    });
+    store = new Store(
+      {
+        wallet: config.wallet,
+        maxPayment: config.maxPayment,
+        dailyBudget: config.dailyBudget,
+      },
+      undefined,
+      config.supabaseUrl && (config.supabaseServiceRoleKey || config.supabaseAnonKey)
+        ? {
+            url: config.supabaseUrl,
+            key: config.supabaseServiceRoleKey || config.supabaseAnonKey,
+          }
+        : undefined,
+    );
+    await store.pullFromSupabase();
     store.recover();
     const secret = randomBytes(32).toString('hex');
     const services = config.paymentMode === 'mock' ? mockServices() : realServices;

@@ -35,11 +35,7 @@ async function main() {
   }
   dotenv.config({ path: envLivePath, override: true });
 
-  // Clean up stale live lock if exists
-  const lockFile = resolve('./data/ledgermind-live.sqlite.lock');
-  if (existsSync(lockFile)) {
-    try { unlinkSync(lockFile); } catch {}
-  }
+
 
   console.log('Starting LedgerMind LIVE server on port 3001...');
   const config = readConfig();
@@ -171,7 +167,7 @@ async function main() {
   await page.waitForTimeout(1000);
 
   // =========================================================================
-  // SCENE 5: LedgerMind Copilot (Multi-Chain RPC Scan + Gemini 3.6 Flash for fast AI)
+  // SCENE 5: LedgerMind Copilot (Multi-Chain RPC Scan + Groq LPU for ultra-fast AI)
   // =========================================================================
   console.log('Scene 5: LedgerMind Copilot & Multi-Chain Intelligence...');
   await page.click('#nav-it');
@@ -193,19 +189,16 @@ async function main() {
   await page.click('#it-tab-btn-radar');
   await page.waitForTimeout(1500);
 
-  // CRITICAL USER REQUEST: Select Gemini 3.6 Flash for fast AI results!
-  console.log('Switching model to GEMINI 3.6 FLASH for fast inference...');
-  await page.click('#btn-model-gemini');
-  await page.waitForTimeout(1000);
+  console.log('Using Groq LPU for ultra-fast inference...');
 
   // Click query preset
   await page.click('[data-query="Watch SOL for me"]');
   await page.waitForTimeout(1200);
 
   // Submit query
-  console.log('Submitting natural language inquiry to LedgerMind Copilot (Gemini 3.6 Flash)...');
+  console.log('Submitting natural language inquiry to LedgerMind Copilot (Groq Llama 3.3)...');
   await page.click('#btn-submit-nl');
-  await page.waitForTimeout(6000); // Gemini returns rapidly
+  await page.waitForTimeout(4000); // Groq returns rapidly
 
   // Hover over the action card
   await page.hover('#it-action-card');

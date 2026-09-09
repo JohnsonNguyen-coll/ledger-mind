@@ -19,9 +19,9 @@ export interface MerchantPolicy {
   payTo: string;
   tokenAmount: string;
   maxUsd: number;
-  /** Chỉ endpoint đã pin mới được phép trả resource URL không kèm query. */
+  /** Only pinned endpoints may return resource URLs without queries. */
   resourcePath?: string;
-  /** Budget USDC quy ước 1 USDC = 1 USD, independent of wallet spot estimate. */
+  /** Fixed USDC budget nominal 1 USDC = 1 USD, independent of wallet spot estimate. */
   fixedBudgetAmount?: number;
   transferMethod?: string;
   tokenName?: string;
@@ -48,8 +48,8 @@ export function bawCommandError(error: { killed?: boolean; code?: string | numbe
   } catch { /* Non-JSON bodies are intentionally discarded. */ }
   return new Error('BAW_COMMAND_FAILED');
 }
-/** Windows: chạy Node entry của CLI bằng execFile(shell:false).
- * Không đưa JSON do merchant trả về vào PowerShell/cmd hay lệnh nối chuỗi. */
+/** Windows: runs CLI Node entry using execFile(shell:false).
+ * Never inject merchant JSON into PowerShell/cmd or concatenated strings. */
 export function cliRunner(entry: string): BawRunner {
   if (!isAbsolute(entry) || !/\.(c|m)?js$/i.test(entry))
     throw new Error('BAW_CLI_JS_MUST_BE_ABSOLUTE_JS_PATH');
@@ -74,7 +74,7 @@ export function cliRunner(entry: string): BawRunner {
             [entry, ...args, '--json'],
             { shell: false, windowsHide: true, timeout: 60_000, maxBuffer: 256_000 },
             (error, stdout) => {
-              // Không log stdout/stderr vì CLI có thể chứa chữ ký/session credential.
+              // Never log stdout/stderr as CLI output may contain private keys or session tokens.
               if (error) return reject(bawCommandError(error, stdout));
               try {
                 const value = JSON.parse(stdout);
@@ -152,9 +152,9 @@ interface PreviewData {
   accepted: Record<string, unknown>;
 }
 
-/** Tích hợp buyer thật theo Binance x402 v2 docs. Merchant phải được pin trước
- * bởi developer/operator; model không có công cụ thay URL, token hoặc payTo.
- * Preview có thể dùng độc lập. authorize mặc định bị khóa bằng enabled=false. */
+/** Real buyer adapter per Binance x402 v2 specifications. Merchants must be pinned
+ * in advance by operator; model has no tool to alter URL, token, or payTo.
+ * Preview can run independently. Authorize defaults to disabled (enabled=false). */
 export class BinancePaymentAdapter implements PaymentAdapter {
   readonly mode = 'binance' as const;
   constructor(
@@ -226,8 +226,8 @@ export class BinancePaymentAdapter implements PaymentAdapter {
         matches(o.originalAccept),
     );
     if (!option || !option.amountUsd) throw new Error('NO_SAFE_PAYMENT_OPTION');
-    // Kiểm tra format giá tham khảo, nhưng policy CMC ghi đúng 0.01 USDC vào
-    // budget nominal; không thay token amount bằng giá USD trôi nổi của wallet.
+    // Validate reference price format, but CMC policy records exact 0.01 USDC
+    // nominal budget; do not replace token amount with floating wallet spot rates.
     const estimated = usdCeiling(option.amountUsd);
     const amount = policy.fixedBudgetAmount ?? estimated;
     if (amount <= 0 || amount > policy.maxUsd || amount > service.price)
@@ -257,7 +257,7 @@ export class BinancePaymentAdapter implements PaymentAdapter {
         String(p.index),
       ]),
     );
-    // Không tự chạy token approval. Nếu provider bất ngờ trả approval, giữ reserve.
+    // Do not run token approvals automatically. If provider returns approval, hold reserve.
     if (result.data.approveTxHash) throw new Error('UNEXPECTED_APPROVAL_REQUIRES_RECONCILIATION');
     if (result.data.signatureExpiresAt * 1000 <= Date.now()) throw new Error('SIGNATURE_EXPIRED');
     const envelope = completeX402Envelope(result.data.paymentHeaderValue, p.accepted);
@@ -288,7 +288,7 @@ export class BinancePaymentAdapter implements PaymentAdapter {
       (quote.provider as PreviewData).network !== network
     )
       throw new Error('INVALID_SETTLEMENT_PROOF');
-    // Đây là settlement receipt do merchant báo, chưa phải kiểm chứng RPC độc lập.
+    // Settlement receipt reported by merchant; not independent on-chain RPC proof.
     return { receiptId: tx };
   }
 }

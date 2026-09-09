@@ -1,6 +1,6 @@
-/** Đơn vị nội bộ là 1/1.000.000 USD; tuyệt đối không cộng tiền bằng float.
- * Với tiền thật, đây là giá USD do policy cho phép, không phải token decimals.
- * Token amount luôn là chuỗi integer riêng trong x402 requirements. */
+/** Internal unit is 1/1,000,000 USD; never sum money using float.
+ * For real money, this is policy-permitted USD price, not token decimals.
+ * Token amount is always a separate integer string in x402 requirements. */
 export function usd(value: string): number {
   if (!/^\d+(\.\d{1,6})?$/.test(value)) throw new Error('INVALID_MONEY');
   const [whole = '0', fraction = ''] = value.split('.');
@@ -16,8 +16,8 @@ export function positive(value: number): void {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error('INVALID_AMOUNT');
 }
 
-/** Giá USD tham khảo từ wallet có thể dài hơn 6 số lẻ. Làm tròn LÊN bằng
- * integer để không ghi thiếu ngân sách. Không nới parser tiền do user nhập. */
+/** USD reference price from wallet may have more than 6 decimal places. Round UP using
+ * integer so budget is never underestimated. Do not loosen user input money parser. */
 export function usdCeiling(value: string): number {
   if (!/^\d+(\.\d+)?$/.test(value) || value.length > 200) throw new Error('INVALID_MONEY');
   const [whole = '0', fraction = ''] = value.split('.');

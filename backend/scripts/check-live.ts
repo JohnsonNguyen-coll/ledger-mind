@@ -5,7 +5,7 @@ import { cmcResource } from '../src/services/cmc.js';
 import { boundedJson } from '../src/payments/gateway.js';
 import { errorCode } from '../src/agent/runner.js';
 
-// Chỉ đọc wallet/market/quote/model access. Không gọi sign hay model generation.
+// Read-only check for wallet/market/quote/model access. Does not sign transactions or call model generation.
 const config = readConfig(false);
 let failed = false;
 async function check(label: string, fn: () => Promise<string>) {
@@ -19,40 +19,18 @@ async function check(label: string, fn: () => Promise<string>) {
   }
 }
 await check('Model', async () => {
-  if (config.agentMode === 'gemini') {
-    if (!config.geminiKey) throw new Error('GEMINI_API_KEY_REQUIRED');
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}`,
-      {
-        headers: { 'x-goog-api-key': config.geminiKey },
-        redirect: 'error',
-        signal: AbortSignal.timeout(20000),
-      },
-    );
-    await r.body?.cancel();
-    if (!r.ok) throw new Error(`GEMINI_HTTP_${r.status}`);
-    return `${config.model} accessible. Run npm run check:model to test tool calling.`;
-  }
-  if (config.agentMode === 'openrouter') {
-    if (!config.openrouterKey) throw new Error('OPENROUTER_API_KEY_REQUIRED');
-    const r = await fetch('https://openrouter.ai/api/v1/key', {
-      headers: { Authorization: `Bearer ${config.openrouterKey}` },
+  if (config.agentMode === 'groq') {
+    if (!config.groqKey) throw new Error('GROQ_API_KEY_REQUIRED');
+    const r = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${config.groqKey}` },
       redirect: 'error',
       signal: AbortSignal.timeout(20_000),
     });
     await r.body?.cancel();
-    if (!r.ok) throw new Error(`OPENROUTER_HTTP_${r.status}`);
-    return `OpenRouter key hop le; model ${config.model} (chua kiem tra generation/quota)`;
+    if (!r.ok) throw new Error(`GROQ_HTTP_${r.status}`);
+    return `Groq API key valid; model ${config.model} accessible`;
   }
-  if (!config.openaiKey) throw new Error('OPENAI_API_KEY_REQUIRED');
-  const r = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(config.model)}`, {
-    headers: { Authorization: `Bearer ${config.openaiKey}` },
-    redirect: 'error',
-    signal: AbortSignal.timeout(20_000),
-  });
-  await r.body?.cancel();
-  if (!r.ok) throw new Error(`OPENAI_HTTP_${r.status}`);
-  return `${config.model} (co quyen truy cap; chua goi sinh noi dung)`;
+  return 'demo mode (no external model required)';
 });
 await check('Binance market', async () => {
   const r = await fetch('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=ETHUSDT', {
@@ -93,5 +71,5 @@ if (walletReady && merchantReady) await check('Agentic Wallet preview', async ()
   return 'READY_TO_SIGN: CMC 0.01 USDC / Base (preview only)';
 });
 else console.log('Agentic Wallet preview: SKIPPED - wallet or CMC requirements check failed');
-console.log('Khong ky/thanh toan, khong goi model generation.');
+console.log('No signing or payments performed; model generation not invoked.');
 if (failed) process.exitCode = 1;

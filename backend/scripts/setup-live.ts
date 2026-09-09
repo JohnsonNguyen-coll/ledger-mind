@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFile, writeFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-// Tạo file mới, không ghi đè key hoặc cấu hình user đã nhập.
+// Create new file without overwriting existing keys or user configuration.
 const file = resolve('.env');
 try {
   const cli =
@@ -15,13 +15,13 @@ try {
     template.replace(/^# BAW_CLI_JS=.*$/m, `BAW_CLI_JS=${JSON.stringify(cli.replaceAll('\\', '/'))}`),
     { flag: 'wx' },
   );
-  console.log('Da tao: ' + file);
-  console.log('Nhap API Key trong file nay. Khong gui key vao chat.');
+  console.log('Created: ' + file);
+  console.log('Set your API keys in this file. Never send private keys to chat.');
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code === 'EEXIST')
-    console.log('.env da co; giu nguyen cau hinh.');
+    console.log('.env already exists; configuration preserved.');
   else {
-    console.error('Khong tao duoc .env. Kiem tra BAW_CLI_JS va file .env.example.');
+    console.error('Failed to create .env. Check BAW_CLI_JS path and .env.example file.');
     process.exitCode = 1;
   }
 }

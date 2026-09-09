@@ -4,7 +4,7 @@ import { testConfig } from '../tests/helpers.js';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 
-// Demo tự chứa, dùng port tự cấp và DB trong memory. Không gọi OpenAI/Binance.
+// Self-contained demo, using ephemeral port and in-memory DB. Does not invoke OpenAI/Binance.
 const system = await startSystem(testConfig());
 try {
   console.log('LedgerMind · reproducible local payment demo\n');
@@ -15,7 +15,7 @@ try {
   ] as const) {
     const { task } = system.store.createTask({
       requestKey: randomUUID(),
-      prompt: 'Nghiên cứu ETH: whale, sentiment, risk.',
+      prompt: 'Research ETH: whale, sentiment, risk.',
       symbol: 'ETH',
       budget,
     });

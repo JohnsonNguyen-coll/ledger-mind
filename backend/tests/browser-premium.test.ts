@@ -11,21 +11,30 @@ const wallet=privateKeyToAccount(('0x'+'11'.repeat(32)) as `0x${string}`);
 const other=privateKeyToAccount(('0x'+'22'.repeat(32)) as `0x${string}`);
 const tx='0x'+'ab'.repeat(32);
 const challenge=()=>({x402Version:2,resource:{url:CMC_ORIGIN+CMC_PATH},accepts:[{scheme:'exact',network:'eip155:8453',asset:CMC_USDC_BASE,amount:'10000',payTo:CMC_RECIPIENT,maxTimeoutSeconds:300,extra:{name:'USD Coin',version:'2'}}]});
-async function harness(options:{missingReceipt?:boolean;badData?:boolean;badChallenge?:boolean;lowBalance?:boolean;smartWallet?:boolean;disabled?:boolean;dailyBudget?:number}={}) {
+async function harness(options:{missingReceipt?:boolean;badData?:boolean;badChallenge?:boolean;lowBalance?:boolean;smartWallet?:boolean;disabled?:boolean;dailyBudget?:number;cmcReceiptFormat?:'txHash'|'standard';onchainSettled?:boolean}={}) {
   const config=testConfig({browserPremiumEnabled:!options.disabled,...(options.dailyBudget===undefined?{}:{dailyBudget:options.dailyBudget})});
   const store=new Store(':memory:',{wallet:1000000,maxPayment:10000,dailyBudget:1000000});
   const report=store.saveTreasuryReport({walletAddress:other.address,chainId:8453,summary:'Test',report:{assets:[{symbol:'ETH'}]},markdown:'Test'});
   let paidCalls=0;
   const fetcher:typeof fetch=async (input,init)=>{
     const url=String(input);
-    if(url==='https://mainnet.base.org')return Response.json([{id:1,result:options.lowBalance?'0x1':'0x989680'},{id:2,result:options.smartWallet?'0x1234':'0x'}]);
+    if(url==='https://mainnet.base.org') {
+      const body = JSON.parse(String(init?.body || '{}'));
+      if (body?.method === 'eth_call' && body?.params?.[0]?.data?.startsWith('0xe94a0102')) {
+        return Response.json({ id: 1, result: options.onchainSettled ? '0x0000000000000000000000000000000000000000000000000000000000000001' : '0x0000000000000000000000000000000000000000000000000000000000000000' });
+      }
+      return Response.json([{id:1,result:options.lowBalance?'0x1':'0x989680'},{id:2,result:options.smartWallet?'0x1234':'0x'}]);
+    }
     assert.equal(url,CMC_ORIGIN+CMC_PATH+'?id=1027');
     const signature=new Headers(init?.headers).get('PAYMENT-SIGNATURE');
     if(!signature){const c=challenge();if(options.badChallenge)c.accepts[0]!.payTo=other.address;return Response.json(c,{status:402});}
     paidCalls++;
     const payload=JSON.parse(Buffer.from(signature,'base64').toString());
     assert.equal(payload.x402Version,2);assert.equal(payload.accepted.amount,'10000');assert.equal(payload.payload.authorization.from,wallet.address.toLowerCase());
-    const receipt=Buffer.from(JSON.stringify({success:true,transaction:tx,network:'eip155:8453',payer:wallet.address})).toString('base64');
+    const receiptObj = options.cmcReceiptFormat === 'txHash'
+      ? { success: true, txHash: tx, networkId: 'eip155:8453', payer: wallet.address }
+      : { success: true, transaction: tx, network: 'eip155:8453', payer: wallet.address };
+    const receipt = Buffer.from(JSON.stringify(receiptObj)).toString('base64');
     return Response.json(options.badData?{}:{status:{error_code:0},data:{'1027':{id:1027,symbol:'ETH',quote:{USD:{price:2200,volume_24h:100000,percent_change_24h:2,market_cap:999999,last_updated:new Date().toISOString()}}}}},{headers:options.missingReceipt?{}:{'PAYMENT-RESPONSE':receipt}});
   };
   const app=express();app.use(express.json());installBrowserPremium(app,store,config,'test-token',{requireWallet:()=>wallet.address.toLowerCase(),requireReport:()=>{}},fetcher);
@@ -53,6 +62,42 @@ test('browser premium: quote, EOA signature, settlement, persisted report supple
     assert.equal((await h.quote()).body.status,'settled');
     assert.ok(!JSON.stringify(h.store.audit()).includes(signature));assert.ok(h.store.verifyAudit());
   }finally{await h.close();}
+});
+test('browser premium: accepts real CMC txHash and networkId in PAYMENT-RESPONSE',async()=>{
+  const h=await harness({cmcReceiptFormat:'txHash'});try{
+    const q=(await h.quote()).body;
+    const signature=await sign(q);
+    const res=await h.post(`/api/premium/purchases/${q.id}/pay`,{signature});
+    assert.equal(res.body.status,'settled');
+    assert.equal(res.body.result.receipt.transaction,tx);
+    assert.equal(res.body.result.receipt.network,'eip155:8453');
+  }finally{await h.close();}
+});
+test('browser premium: falls back to Base on-chain verification if PAYMENT-RESPONSE is missing',async()=>{
+  const h=await harness({missingReceipt:true,onchainSettled:true});try{
+    const q=(await h.quote()).body;
+    const signature=await sign(q);
+    const res=await h.post(`/api/premium/purchases/${q.id}/pay`,{signature});
+    assert.equal(res.body.status,'settled');
+    assert.ok(res.body.result.receipt);
+  }finally{await h.close();}
+});
+test('browser premium: auto-reconciles unknown purchase when refreshed via GET endpoint',async()=>{
+  const h=await harness({missingReceipt:true,onchainSettled:false});try{
+    const q=(await h.quote()).body;
+    const signature=await sign(q);
+    const payRes=await h.post(`/api/premium/purchases/${q.id}/pay`,{signature});
+    assert.equal(payRes.body.status,'unknown');
+    // Now simulate blockchain mining confirming the authorization
+    h.close();
+  }catch(e){await h.close();throw e;}
+  const h2=await harness({onchainSettled:true});try{
+    const q=(await h2.quote()).body;
+    h2.store.db.prepare("UPDATE browser_purchases SET status='unknown',result=? WHERE id=?").run(JSON.stringify({error:'Settlement could not be confirmed.'}),q.id);
+    const getRes=await (await fetch(h2.url+`/api/premium/purchases/${q.id}`)).json() as any;
+    assert.ok(getRes.status==='paid_data_unavailable'||getRes.status==='settled');
+    assert.ok(getRes.result.receipt.transaction);
+  }finally{await h2.close();}
 });
 test('browser premium: rejects wrong signer and expired quotes without contacting paid endpoint',async()=>{
   const h=await harness();try{

@@ -28,6 +28,22 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     VALUES ('global', '0x0000000000000000000000000000000000000000', 8453, 'Global Market Snapshot', '{}', '', 'global', CURRENT_TIMESTAMP);
     UPDATE browser_purchases SET status='unknown' WHERE status='submitting';`);
   const read = (id: string) => store.db.prepare('SELECT * FROM browser_purchases WHERE id=?').get(id) as Row | undefined;
+  const syncPurchase = (id: string) => {
+    const r = read(id);
+    if (r && store.supabase) {
+      void store.syncToSupabase('browser_purchases', {
+        id: r.id,
+        reportId: r.reportId,
+        payer: r.payer,
+        symbol: r.symbol,
+        status: r.status,
+        quote: r.quote,
+        result: r.result,
+        createdAt: r.createdAt,
+        submittedAt: r.submittedAt,
+      });
+    }
+  };
   const publicRow = (row: Row) => ({ id: row.id, reportId: row.reportId, payer: row.payer, symbol: row.symbol, status: row.status, quote: JSON.parse(row.quote) as Quote, result: row.result ? JSON.parse(row.result) : null });
   const request = (url: string, headers: Record<string,string> = {}) => fetcher(url, { headers, redirect: 'error', signal: AbortSignal.timeout(25000) });
   const checkEnabled = () => { if (!config.browserPremiumEnabled) throw new Error('BROWSER_PREMIUM_DISABLED'); };
@@ -51,25 +67,100 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
     if (BigInt(balance) < BigInt(fee)) throw new Error('INSUFFICIENT_USDC_ON_BASE');
     return BigInt(balance).toString();
   }
-  app.get('/api/premium/purchases', (req,res) => {
+  async function checkOnchainSettled(payer: string, nonce: string): Promise<boolean> {
+    try {
+      const response = await fetcher('https://mainnet.base.org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(6000),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_call',
+          params: [{
+            to: CMC_USDC_BASE,
+            data: '0xe94a0102' + payer.slice(2).padStart(64, '0') + nonce.slice(2).padStart(64, '0'),
+          }, 'latest']
+        }),
+      });
+      if (!response.ok) return false;
+      const res = await boundedJson(response) as { result?: string } | Array<{ result?: string }>;
+      const hex = Array.isArray(res) ? res[0]?.result : res?.result;
+      return Boolean(hex === '0x0000000000000000000000000000000000000000000000000000000000000001' || (hex && hex.endsWith('1') && hex.length === 66));
+    } catch {
+      return false;
+    }
+  }
+  function parseReceiptHeader(header: string | null) {
+    if (!header || header.length > 24000) return null;
+    try {
+      const normalized = header.trim().replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8'));
+      const schema = z.object({
+        success: z.literal(true),
+        transaction: z.string().regex(/^0x[\da-fA-F]{64}$/).optional(),
+        txHash: z.string().regex(/^0x[\da-fA-F]{64}$/).optional(),
+        network: z.literal('eip155:8453').optional(),
+        networkId: z.literal('eip155:8453').optional(),
+        payer: address.optional(),
+        amount: z.string().optional(),
+      }).passthrough();
+      const p = schema.parse(decoded);
+      const tx = p.transaction || p.txHash;
+      const net = p.network || p.networkId;
+      if (!tx || !net) return null;
+      return { transaction: tx, network: net, payer: p.payer, amount: p.amount };
+    } catch {
+      return null;
+    }
+  }
+  async function reconcilePurchase(row: Row): Promise<Row> {
+    if (row.status !== 'unknown') return row;
+    try {
+      const quote = JSON.parse(row.quote) as Quote;
+      const a = quote.authorization;
+      if (!a?.nonce) return row;
+      const onchain = await checkOnchainSettled(row.payer, a.nonce);
+      if (onchain) {
+        const receipt = { transaction: '0x' + '0'.repeat(64), network: 'eip155:8453', payer: row.payer };
+        let data: unknown;
+        try {
+          const resp = await request(cmcResource(row.symbol));
+          if (resp.ok) data = cmcData(await boundedJson(resp), row.symbol);
+        } catch {}
+        const status = data ? 'settled' : 'paid_data_unavailable';
+        const result = { receipt, ...(data ? { data } : { error: 'Payment confirmed on Base blockchain; data delivery failed. Do not pay again.' }) };
+        store.db.prepare('UPDATE browser_purchases SET status=?,result=? WHERE id=?').run(status, JSON.stringify(result), row.id);
+        syncPurchase(row.id);
+        store.event(null, 'premium.browser.reconciled', { reportId: row.reportId, purchaseId: row.id, status });
+        return read(row.id)!;
+      }
+    } catch {}
+    return row;
+  }
+  app.get('/api/premium/purchases', async (req,res) => {
     const payer = access.requireWallet(req);
     const rawReportId = req.query.reportId ? String(req.query.reportId) : null;
+    let rows: Row[];
     if (rawReportId && rawReportId !== 'global') {
       const reportId = z.string().uuid().parse(rawReportId);
       access.requireReport(req, reportId);
       store.treasuryReport(reportId);
-      const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? ORDER BY createdAt DESC').all(reportId,payer) as Row[];
-      return res.json({ purchases: rows.map(publicRow) });
+      rows = store.db.prepare('SELECT * FROM browser_purchases WHERE reportId=? AND payer=? ORDER BY createdAt DESC').all(reportId,payer) as Row[];
+    } else {
+      rows = store.db.prepare('SELECT * FROM browser_purchases WHERE payer=? ORDER BY createdAt DESC').all(payer) as Row[];
     }
-    const rows = store.db.prepare('SELECT * FROM browser_purchases WHERE payer=? ORDER BY createdAt DESC').all(payer) as Row[];
-    res.json({ purchases: rows.map(publicRow) });
+    const reconciled = await Promise.all(rows.map(reconcilePurchase));
+    res.json({ purchases: reconciled.map(publicRow) });
   });
-  app.get('/api/premium/purchases/:id', (req,res) => {
-    const row = read(z.string().uuid().parse(req.params.id));
+  app.get('/api/premium/purchases/:id', async (req,res) => {
+    let row = read(z.string().uuid().parse(req.params.id));
     if (!row) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
     const viewer = access.requireWallet(req);
     if (row.payer !== viewer) return res.status(404).json({error:'PURCHASE_NOT_FOUND'});
     if (row.reportId !== 'global') access.requireReport(req,row.reportId);
+    row = await reconcilePurchase(row);
     res.json(publicRow(row));
   });
   app.post('/api/premium/quote', async (req,res) => {
@@ -114,6 +205,7 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
         return read(quote.id)!;
       });
       store.event(null,'premium.browser.quoted',{reportId,purchaseId:saved.id,amount:fee,payer});
+      syncPurchase(saved.id);
       res.json(publicRow(saved));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'INVALID_QUOTE_REQUEST';
@@ -150,18 +242,27 @@ export function installBrowserPremium(app: Express, store: Store, config: Config
       const payload = {x402Version:2,resource:quote.resource,accepted:quote.accepted,payload:{signature,authorization:a}};
       const response = await request(cmcResource(row.symbol),{'PAYMENT-SIGNATURE':Buffer.from(JSON.stringify(payload)).toString('base64')});
       const header = response.headers.get('PAYMENT-RESPONSE');
-      if (!header || header.length>24000) { await response.body?.cancel(); throw new Error('SETTLEMENT_UNCONFIRMED'); }
-      const parsed = z.object({success:z.literal(true),transaction:z.string().regex(/^0x[\da-fA-F]{64}$/),network:z.literal('eip155:8453'),payer:address.optional(),amount:z.string().optional()}).parse(JSON.parse(Buffer.from(header,'base64').toString()));
+      let parsed = parseReceiptHeader(header);
+      if (!parsed) {
+        const onchain = await checkOnchainSettled(row.payer, a.nonce);
+        if (onchain) {
+          parsed = { transaction: '0x' + '0'.repeat(64), network: 'eip155:8453', payer: row.payer, amount: String(fee) };
+        }
+      }
+      if (!parsed) { await response.body?.cancel(); throw new Error('SETTLEMENT_UNCONFIRMED'); }
       if ((parsed.payer && parsed.payer.toLowerCase()!==row.payer) || (parsed.amount && parsed.amount!==String(fee))) { await response.body?.cancel(); throw new Error('RECEIPT_PAYMENT_MISMATCH'); }
       receipt = {transaction:parsed.transaction,network:parsed.network,payer:parsed.payer || row.payer};
       store.db.prepare("UPDATE browser_purchases SET status='paid_data_unavailable',result=? WHERE id=?").run(JSON.stringify({receipt}),id);
+      syncPurchase(id);
       if (!response.ok) { await response.body?.cancel(); throw new Error('PAID_DATA_UNAVAILABLE'); }
       const data = cmcData(await boundedJson(response),row.symbol);
       store.db.prepare("UPDATE browser_purchases SET status='settled',result=? WHERE id=?").run(JSON.stringify({receipt,data}),id);
+      syncPurchase(id);
       store.event(null,'premium.browser.settled',{reportId:row.reportId,purchaseId:id,transaction:receipt.transaction,symbol:row.symbol});
     } catch {
       const status = receipt ? 'paid_data_unavailable' : 'unknown';
       store.db.prepare('UPDATE browser_purchases SET status=?,result=? WHERE id=?').run(status,JSON.stringify({...(receipt?{receipt}:{}),error:receipt?'Payment confirmed; data delivery failed. Do not pay again.':'Settlement could not be confirmed. Do not pay again; inspect the paying wallet.'}),id);
+      syncPurchase(id);
       store.event(null,'premium.browser.delivery_failed',{reportId:row.reportId,purchaseId:id,status});
     }
     res.json(publicRow(read(id)!));

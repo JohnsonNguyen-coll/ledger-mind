@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-/** Lấy báo giá ETH trực tiếp từ CoinMarketCap, không dùng ví và không trả tiền.
- * id=1027 là Ethereum theo tài liệu CMC. Chỉ GET tới địa chỉ cố định;
- * không tự theo redirect, không gửi API key/cookie/chữ ký thanh toán.
- * Giữ nguyên payment requirements để Binance preview đúng báo giá merchant.
+/** Fetch ETH quote directly from CoinMarketCap, without wallet and without paying.
+ * id=1027 is Ethereum according to CMC docs. Strictly GET to fixed URL;
+ * does not follow redirects, does not send API key/cookie/payment signature.
+ * Preserves payment requirements so Binance preview accurately reflects merchant quote.
  */
 const url = 'https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1027';
 const maxBytes = 16_000;
@@ -19,10 +19,10 @@ try {
   console.log(`CoinMarketCap HTTP ${response.status}`);
   if (response.status !== 402) {
     await response.body?.cancel();
-    throw new Error('EXPECTED_HTTP_402: Chua nhan duoc bao gia thanh toan.');
+    throw new Error('EXPECTED_HTTP_402: Payment quote not received.');
   }
 
-  // x402 v2 dùng header base64; hỗ trợ JSON body nếu merchant không có header.
+  // x402 v2 uses base64 header; falls back to JSON body if merchant omits header.
   const header = response.headers.get('payment-required');
   let text: string;
   if (header) {
@@ -51,8 +51,8 @@ try {
   )
     throw new Error('INVALID_X402_V2_REQUIREMENTS');
 
-  // CMC có thể trả resource.url tương đối, không kèm query. Chỉ kiểm tra,
-  // không sửa URL trong payload mà merchant đã phát hành.
+  // CMC may return a relative resource.url without query. Only inspect,
+  // do not modify the merchant payload URL.
   if (typeof requirements.resource?.url !== 'string') throw new Error('MISSING_RESOURCE_URL');
   const resource = new URL(requirements.resource.url, url);
   const requested = new URL(url);
@@ -101,6 +101,6 @@ try {
   console.log('Next: npm run wallet:preview -- .\\data\\cmc-eth-requirements.json');
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'CMC_QUOTE_FAILED');
-  console.error('Khong chay preview tu file cu neu lenh nay bi loi.');
+  console.error('Do not run preview from stale file if this command failed.');
   process.exitCode = 1;
 }

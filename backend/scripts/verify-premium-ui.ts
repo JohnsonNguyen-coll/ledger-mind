@@ -5,8 +5,7 @@ import { testConfig } from '../tests/helpers.js';
 import { mkdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const account=privateKeyToAccount(('0x'+'11'.repeat(32)) as `0x${string}`);
-mkdirSync('data/ui-check',{recursive:true});
-const system=await startSystem(testConfig({databasePath:`data/ui-check/premium-${Date.now()}.sqlite`}));
+const system=await startSystem(testConfig());
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 try{
   const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));

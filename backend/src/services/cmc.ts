@@ -4,7 +4,7 @@ import type { DataResult, Symbol } from '../types.js';
 export const CMC_ORIGIN = 'https://pro-api.coinmarketcap.com';
 export const CMC_PATH = '/x402/v3/cryptocurrency/quotes/latest';
 export const CMC_USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-// Địa chỉ từ challenge CMC đã được kiểm tra trong phiên setup; thay đổi => dừng.
+// CMC recipient address verified in setup session; halt on change.
 export const CMC_RECIPIENT = '0x3C5f3a6cE224BB89D72f5EB4232ecC27F67B3eeA';
 const ids: Record<Symbol, number> = { ETH: 1027, BTC: 1, BNB: 1839, SOL: 5426 };
 export function cmcResource(symbol: Symbol): string {
@@ -12,9 +12,9 @@ export function cmcResource(symbol: Symbol): string {
   return `${CMC_ORIGIN}${CMC_PATH}?id=${ids[symbol]}`;
 }
 
-/** CMC trả schema riêng, không phải schema của các microservice mock.
- * Chỉ lấy các trường số đã kiểm tra; không đẩy nguyên body merchant vào prompt.
- * Hỗ trợ giá trị object hoặc array một phần tử của API quotes. */
+/** CMC returns a bespoke schema different from mock microservices.
+ * Only extracts verified numeric fields; never injects raw merchant bodies into prompt.
+ * Supports both object and single-element array shapes in quotes API. */
 export function cmcData(raw: unknown, symbol: Symbol): DataResult {
   const envelope = z
     .object({

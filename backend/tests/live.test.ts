@@ -6,7 +6,8 @@ import { PaymentGateway } from '../src/payments/gateway.js';
 import { BinancePaymentAdapter } from '../src/payments/binance.js';
 import { realServices, realPolicies } from '../src/services/registry.js';
 import { cmcData, cmcResource, CMC_ORIGIN, CMC_PATH } from '../src/services/cmc.js';
-import { OpenAIProvider, toolsForServices } from '../src/agent/provider.js';
+import { GroqProvider } from '../src/agent/groq.js';
+import { toolsForServices } from '../src/agent/provider.js';
 import { AgentRunner } from '../src/agent/runner.js';
 import { testConfig } from './helpers.js';
 import { usdCeiling } from '../src/money.js';
@@ -114,7 +115,7 @@ for (const [budget, behavior] of [
     const config = testConfig({
       paymentMode: 'binance',
       realEnabled: true,
-      agentMode: 'openai',
+      agentMode: 'groq',
       maxPayment: 10000,
     });
     const store = new Store(':memory:', { wallet: 100000, maxPayment: 10000, dailyBudget: 100000 });
@@ -161,45 +162,45 @@ for (const [budget, behavior] of [
     });
     const task = store.createTask({
       requestKey: randomUUID(),
-      prompt: 'Mua CMC ETH',
+      prompt: 'Buy CMC ETH',
       symbol: 'ETH',
       budget,
     }).task;
     let decisions = 0;
-    const provider = new OpenAIProvider(
+    const provider = new GroqProvider(
       task,
       'TEST_KEY_ONLY',
       config.model,
       async (_url, init) => {
         const body = JSON.parse(String(init?.body));
         assert.deepEqual(
-          body.tools.map((t: { name: string }) => t.name),
+          body.tools.map((t: { function: { name: string } }) => t.function.name),
           ['get_market', 'get_budget', 'compare_markets', 'get_spending_summary', 'buy_cmc_quote'],
         );
-        assert.ok(!JSON.stringify(body.input).includes('TEST_SIGNATURE'));
+        assert.ok(!JSON.stringify(body.messages).includes('TEST_SIGNATURE'));
         decisions++;
-        // Model gọi cùng tool hai lần: executor phải dùng lại kết quả hoặc lỗi.
+        // Model calls same tool twice: executor must reuse result or error.
         return Response.json({
-          status: 'completed',
-          output:
-            decisions <= 2
-              ? [
-                  {
-                    type: 'function_call',
-                    call_id: `call_${decisions}`,
-                    name: 'buy_cmc_quote',
-                    arguments: '{}',
-                  },
-                ]
-              : [
-                  {
-                    type: 'message',
-                    content: [
-                      { type: 'output_text', text: 'Báo cáo kiểm thử từ dữ liệu đã nhận.' },
-                    ],
-                  },
-                ],
-          usage: { input_tokens: 5, output_tokens: 10 },
+          choices: [
+            {
+              finish_reason: decisions <= 2 ? 'tool_calls' : 'stop',
+              message:
+                decisions <= 2
+                  ? {
+                      role: 'assistant',
+                      content: null,
+                      tool_calls: [
+                        {
+                          id: `call_${decisions}`,
+                          type: 'function',
+                          function: { name: 'buy_cmc_quote', arguments: '{}' },
+                        },
+                      ],
+                    }
+                  : { role: 'assistant', content: 'Test report from received data.' },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 10 },
         });
       },
       toolsForServices(realServices),
@@ -256,7 +257,7 @@ test('live HTTP consent is required and recorded; zero budget cannot sign', asyn
         headers: { 'Content-Type': 'application/json', 'X-LedgerMind-Token': conf.csrfToken },
         body: JSON.stringify({
           requestKey: randomUUID(),
-          prompt: 'Mua CMC',
+          prompt: 'Buy CMC',
           symbol: 'ETH',
           budgetUsd,
           authorizeRealPayments: consent,

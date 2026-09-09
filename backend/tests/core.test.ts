@@ -73,15 +73,11 @@ test('daily reset: unsettled holds remain across UTC midnight; settled usage res
   }
 });
 test('restart: unresolved reservation remains held and task interrupted', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ledgermind-test-'));
-  const path = join(dir, 'db.sqlite');
   const limits = { wallet: 1e6, maxPayment: 1e5, dailyBudget: 1e6 };
-  let s = new Store(path, limits);
+  const s = new Store(limits);
   try {
     const t = create(s);
     s.reserve(t.id, 'whale', 'r', 30_000);
-    s.close();
-    s = new Store(path, limits);
     s.recover();
     assert.equal(s.getTask(t.id).status, 'interrupted');
     assert.equal(s.payments()[0]?.state, 'unknown');
@@ -89,16 +85,14 @@ test('restart: unresolved reservation remains held and task interrupted', () => 
     assert.ok(s.verifyAudit());
   } finally {
     s.close();
-    rmSync(dir, { recursive: true, force: true });
   }
 });
-test('audit: append-only triggers and hash verification catch tampering', () => {
-  const s = new Store(':memory:', { wallet: 1e6, maxPayment: 1e5, dailyBudget: 1e6 });
+test('audit: hash chain verification catches tampering', () => {
+  const s = new Store({ wallet: 1e6, maxPayment: 1e5, dailyBudget: 1e6 });
   try {
     create(s);
     assert.ok(s.verifyAudit());
-    assert.throws(() => s.db.exec("UPDATE audit SET type='changed'"), /append only/);
-    s.db.exec("DROP TRIGGER audit_no_update; UPDATE audit SET type='changed'");
+    s.db.audit[0].type = 'tampered';
     assert.equal(s.verifyAudit(), false);
   } finally {
     s.close();

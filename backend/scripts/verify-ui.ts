@@ -4,10 +4,7 @@ import { testConfig } from '../tests/helpers.js';
 import { mkdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
-mkdirSync('data/ui-check', { recursive: true });
-const system = await startSystem(
-  testConfig({ databasePath: `data/ui-check/check-${Date.now()}.sqlite` }),
-);
+const system = await startSystem(testConfig());
 const browser = await chromium.launch({
   executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
   headless: true,

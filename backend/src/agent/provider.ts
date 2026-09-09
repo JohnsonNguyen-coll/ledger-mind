@@ -111,8 +111,8 @@ export function toolsForServices(services: Service[], dynamic = false): ToolDefi
 }
 export const tools = toolsForServices(mockServices());
 
-/** Provider demo là bộ chọn công cụ xác định, không giả vờ là LLM.
- * Nó đi qua đúng executor/payment/budget giống provider OpenAI. */
+/** Demo provider is a deterministic tool selector, not an LLM.
+ * It passes through the exact same executor/payment/budget pipeline as the OpenAI provider. */
 export class DemoProvider implements Provider {
   constructor(
     private task: Task,
@@ -148,7 +148,7 @@ export class DemoProvider implements Provider {
         calls: [],
         text: 'This local demo has no fixture for your request. Connect an AI model with MARKET_MODE=binance for live discovery. No payment was attempted.',
       };
-    const onlyRisk = /(?:chỉ|only).*?(?:risk|rủi ro)/.test(prompt);
+    const onlyRisk = /(?:only|just).*?risk/i.test(prompt);
     const sequence = /spending review|spending audit|spend audit/.test(prompt)
       ? ['get_spending_summary']
       : /compare|comparison/.test(prompt)
@@ -205,9 +205,9 @@ const responseSchema = z.object({
   output: z.array(z.object({ type: z.string() }).passthrough()).max(30),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }).optional(),
 });
-/** Responses API với full input history + store:false. Output items (bao gồm
- * reasoning items nếu model có) được giữ nguyên theo protocol, không hiển thị
- * chain-of-thought. Chỉ tool calls, tool results và final text đi ra sản phẩm. */
+/** Responses API with full input history + store:false. Output items (including
+ * reasoning items if model produces them) are preserved per protocol, without displaying
+ * chain-of-thought. Only tool calls, tool results and final text reach the product. */
 export class OpenAIProvider implements Provider {
   private history: unknown[];
   private consumed = 0;

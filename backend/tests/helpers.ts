@@ -1,11 +1,11 @@
 import type { Config } from '../src/config.js';
+
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return {
     port: 0,
     appOrigin: '',
     servicePorts: [0, 0, 0],
     databasePath: ':memory:',
-    databaseUrl: '',
     supabaseUrl: '',
     supabaseAnonKey: '',
     supabaseServiceRoleKey: '',
@@ -18,11 +18,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     maxTaskBudget: 1_000_000,
     stepMs: 0,
     maxSteps: 8,
-    openaiKey: '',
-    openrouterKey: '',
-    geminiKey: '',
     groqKey: '',
-    model: 'gpt-4.1-mini',
+    model: 'llama-3.3-70b-versatile',
     bawCliJs: '',
     realEnabled: false,
     browserPremiumEnabled: true,

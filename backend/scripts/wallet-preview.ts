@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { cliRunner } from '../src/payments/binance.js';
 import { errorCode } from '../src/agent/runner.js';
 
-/** Read-only helper. File requirements lấy từ merchant đã xác minh.
- * Không nhận private key/seed. Không gọi sign. Chỉ xuất trường công khai của
- * báo giá, không in raw stdout, wallet session hoặc payment-header value. */
+/** Read-only helper. Requirements file fetched from verified merchant.
+ * Does not accept private key/seed. Does not invoke sign. Only logs public quote
+ * fields; never outputs raw stdout, wallet sessions, or payment-header values. */
 try {
   const file = process.argv[2];
   if (!file) throw new Error('USAGE_NPM_RUN_WALLET_PREVIEW_REQUIREMENTS_JSON');
@@ -40,8 +40,8 @@ try {
       needApproveFirst: o.needApproveFirst,
     })),
   );
-  // reasons là mã/giải thích của wallet, giúp phân biệt thiếu tiền, thiếu
-  // allowance và mạng không được hỗ trợ. Không in paymentId hoặc chữ ký.
+  // reasons are wallet codes/explanations distinguishing insufficient funds, missing
+  // allowance, and unsupported networks. Never prints paymentId or signatures.
   for (const option of preview.data.options) {
     if (option.reasons)
       console.log(JSON.stringify({ index: option.index, reasons: option.reasons }));

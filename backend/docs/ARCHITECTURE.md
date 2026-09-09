@@ -12,10 +12,10 @@ backend/
   src/
     app.ts              Express API, SPA fallback router, and Treasury Analyzer routes
     system.ts           Server assembly and lifecycle
-    store.ts            Storage manager (SQLite local / Supabase PostgreSQL Cloud) and audit ledger
+    store.ts            Storage manager (Supabase Cloud PostgreSQL engine) and audit ledger
     payments/           x402 browser wallet & payment adapters
     services/           Binance, CoinMarketCap, fixtures and registry
-    agent/              Task runner and model providers (OpenAI, OpenRouter, Gemini)
+    agent/              Task runner and model providers (Groq, Demo)
   tests/
   scripts/
   docs/

@@ -34,7 +34,7 @@ export function verifyReceipt(token: string, secret: string) {
   if (receipt.expiresAt <= Date.now()) throw new Error('RECEIPT_EXPIRED');
   return receipt;
 }
-/** Receipt HMAC là biên nhận của demo local, KHÔNG phải chữ ký x402 on-chain. */
+/** HMAC receipt is for local demo verification, NOT an on-chain x402 signature. */
 export class MockPaymentAdapter implements PaymentAdapter {
   readonly mode = 'mock' as const;
   constructor(private readonly secret: string) {}

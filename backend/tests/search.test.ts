@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { MarketSearch } from '../src/services/market-search.js';
 import { AgentRunner } from '../src/agent/runner.js';
-import { GeminiProvider } from '../src/agent/gemini.js';
+import { GroqProvider } from '../src/agent/groq.js';
 import { toolsForServices, type Provider } from '../src/agent/provider.js';
 import { Store } from '../src/store.js';
 import { PaymentGateway } from '../src/payments/gateway.js';
@@ -83,14 +83,30 @@ test('new task API requires no selected asset, preserves idempotency and runs lo
   } finally { await system.close(); }
 });
 
-test('Gemini receives actual dynamic argument schemas including symbols and quote currency', async () => {
+test('Groq receives actual dynamic argument schemas including symbols and quote currency', async () => {
   const task = { id: 'test', requestKey: randomUUID(), prompt: 'Research SUI', symbol: 'AUTO', budget: 0,
     status: 'running' as const, createdAt: new Date().toISOString(), result: null, error: null };
-  const provider = new GeminiProvider(task, 'test', 'gemini-2.5-flash', async (_url, init) => {
-    const declarations = JSON.parse(String(init?.body)).tools[0].functionDeclarations;
-    assert.deepEqual(declarations.find((t: any) => t.name === 'get_market').parametersJsonSchema.required, ['symbol', 'quoteAsset']);
-    assert.ok(declarations.find((t: any) => t.name === 'search_assets').parametersJsonSchema.properties.query);
-    return Response.json({ candidates: [{ finishReason: 'STOP', content: { role: 'model', parts: [{ functionCall: { name: 'get_market', args: { symbol: 'SUI', quoteAsset: 'USDT' } } }] } }] });
+  const provider = new GroqProvider(task, 'test', 'llama-3.3-70b-versatile', async (_url, init) => {
+    const tools = JSON.parse(String(init?.body)).tools;
+    assert.deepEqual(tools.find((t: any) => t.function.name === 'get_market').function.parameters.required, ['symbol', 'quoteAsset']);
+    assert.ok(tools.find((t: any) => t.function.name === 'search_assets').function.parameters.properties.query);
+    return Response.json({
+      choices: [
+        {
+          finish_reason: 'tool_calls',
+          message: {
+            role: 'assistant',
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'get_market', arguments: JSON.stringify({ symbol: 'SUI', quoteAsset: 'USDT' }) },
+              },
+            ],
+          },
+        },
+      ],
+    });
   }, toolsForServices([], true));
   assert.deepEqual(JSON.parse((await provider.next([])).calls[0]!.arguments), { symbol: 'SUI', quoteAsset: 'USDT' });
 });

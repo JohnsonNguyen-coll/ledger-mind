@@ -14,7 +14,7 @@ export const dataSchema = z.object({
   observedAt: z.string().datetime(),
 });
 export async function boundedJson(response: Response, maxBytes = 256_000): Promise<unknown> {
-  // Giới hạn cả response không có Content-Length / dùng chunked transfer.
+  // Enforce size limits on chunked transfer and responses without Content-Length.
   if (!response.body) throw new Error('EMPTY_RESPONSE');
   const reader = response.body.getReader();
   let size = 0;
@@ -119,7 +119,7 @@ export class PaymentGateway {
       if (this.delayBeforeSubmissionMs > 0 && service.id === 'cmc_quote') {
         await new Promise((resolve) => setTimeout(resolve, this.delayBeforeSubmissionMs));
       }
-      // Một replay duy nhất. Không tự sign lại khi mạng lỗi hoặc merchant trả 402.
+      // Single dispatch. Never re-sign when network errors occur or merchant returns 402.
       const response = await this.request(resource, authorization.headers);
       this.store.event(task.id, 'payment.merchant_response', {
         serviceId: service.id, httpStatus: response.status,

@@ -196,7 +196,7 @@ test('B402 signature verifies the exact UTF-8 body plus millisecond timestamp', 
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const privateKeyBase64 = privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64');
   const req = signedB402Request(
-    { note: 'Tiếng Việt', amount: '30000' },
+    { note: 'Test Note', amount: '30000' },
     { clientId: 'test', accessToken: 'test', privateKeyBase64 },
     1788400000000,
   );
@@ -231,7 +231,7 @@ test('OpenAI Responses: function call outputs carried to next request, secrets e
       output:
         bodies.length === 1
           ? [{ type: 'function_call', call_id: 'call_1', name: 'get_market', arguments: '{}' }]
-          : [{ type: 'message', content: [{ type: 'output_text', text: 'Báo cáo từ tool.' }] }],
+          : [{ type: 'message', content: [{ type: 'output_text', text: 'Report from tool.' }] }],
       usage: { input_tokens: 10, output_tokens: 5 },
     });
   }) as typeof fetch;
@@ -241,7 +241,7 @@ test('OpenAI Responses: function call outputs carried to next request, secrets e
   const last = await provider.next([
     { call: first.calls[0]!, output: { data: { fixture: true } } },
   ]);
-  assert.equal(last.text, 'Báo cáo từ tool.');
+  assert.equal(last.text, 'Report from tool.');
   assert.ok(JSON.stringify(bodies[1]).includes('function_call_output'));
   assert.ok(!JSON.stringify(bodies).includes('test-key'));
   assert.equal(bodies[0]?.store, false);

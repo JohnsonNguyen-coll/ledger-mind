@@ -1,8 +1,8 @@
 import { createPrivateKey, sign } from 'node:crypto';
 
-/** Merchant/facilitator transport boundary: chỉ tạo request, không gửi tiền.
- * Serialize MỘT lần; body gửi đi phải đúng từng byte với body được ký.
- * Endpoint/schema V2 lấy từ docs, credentials do Binance cấp khi onboarding. */
+/** Merchant/facilitator transport boundary: generates request payload only, never moves funds.
+ * Serializes ONCE; the outbound body must match byte-for-byte with the signed body.
+ * Schema V2 per specifications, credentials provisioned by Binance upon onboarding. */
 export function signedB402Request(
   body: unknown,
   credentials: { clientId: string; accessToken: string; privateKeyBase64: string },

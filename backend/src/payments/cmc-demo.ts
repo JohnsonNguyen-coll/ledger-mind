@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 import type { BawRunner } from './binance.js';
 
-// Một lần mua cố định đã được người dùng xem báo giá. Model không chọn URL,
-// người nhận, token hay giá. Không tự đổi mạng/option khi phương án này lỗi.
+// Fixed one-time purchase with terms reviewed by the user. Model cannot choose URL,
+// recipient, token or amount. Never switches network/option if this one fails.
 export const cmcPurchase = {
   url: 'https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1027',
   network: 'eip155:8453',
@@ -54,7 +54,7 @@ export function validateCmcChallenge(value: unknown) {
   )
     throw new Error('CMC_RESOURCE_CHANGED');
   if (!challenge.accepts.some(matches)) throw new Error('CMC_PRICE_TOKEN_OR_RECIPIENT_CHANGED');
-  // Trả lại nguyên JSON: không làm mất extensions/extra hoặc sửa resource URL.
+  // Returns raw JSON: preserves extensions/extra without rewriting resource URL.
   return value;
 }
 
@@ -105,10 +105,10 @@ async function bodyText(response: Response, max: number) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-/** Lệnh demo thật độc lập, tối đa một lần ký và một lần gửi header.
- * Nhật ký độc quyền được fsync TRƯỚC khi ký. Timeout/crash giữ nguyên nhật ký,
- * lần chạy sau bị chặn để không mua trùng. Không lưu signature/paymentId.
- * Kiểm thử truyền fetch/run giả; code production không nhận URL tùy ý.
+/** Standalone real demo command, max 1 signature and 1 header dispatch.
+ * Exclusive journal is fsynced BEFORE signing. Timeout/crash preserves journal,
+ * subsequent runs blocked to prevent double spending. Never stores signature/paymentId.
+ * Tests inject mock fetch/run; production code does not accept arbitrary URLs.
  */
 export async function buyCmcOnce(deps: {
   confirmed: boolean;
@@ -120,7 +120,7 @@ export async function buyCmcOnce(deps: {
   const fetcher = deps.fetcher ?? fetch;
   await mkdir(deps.directory, { recursive: true });
   const journalPath = resolve(deps.directory, 'cmc-first-payment.jsonl');
-  // Chặn lần chạy lặp trước cả preview. open('wx') bên dưới vẫn xử lý race.
+  // Block repeat attempts before preview. open('wx') below handles concurrency races.
   try {
     const existing = await open(journalPath, 'r');
     await existing.close();
@@ -198,7 +198,7 @@ export async function buyCmcOnce(deps: {
       );
     if (signed.data.signatureExpiresAt * 1000 <= Date.now()) throw new Error('SIGNATURE_EXPIRED');
     await record('submission_started');
-    // Không redirect hoặc retry request đã có chữ ký, kể cả lỗi mạng.
+    // Do not redirect or retry signed requests, including on network errors.
     const paid = await fetcher(cmcPurchase.url, {
       headers: { Accept: 'application/json', 'PAYMENT-SIGNATURE': signed.data.paymentHeaderValue },
       redirect: 'error',
@@ -222,7 +222,7 @@ export async function buyCmcOnce(deps: {
         const net = receipt.network || receipt.networkId;
         if (tx && /^0x[0-9a-fA-F]{64}$/.test(tx) && net === 'eip155:8453') transaction = tx;
       } catch {
-        /* Thiếu/sai receipt không đồng nghĩa chưa trả tiền. */
+        /* Missing or invalid receipt does not imply payment failed. */
       }
     }
     if (transaction) {
@@ -239,7 +239,7 @@ export async function buyCmcOnce(deps: {
     await record('completed', { dataPath, transaction });
     return { transaction, dataPath, journalPath };
   } catch (error) {
-    // Không log lỗi gốc từ merchant/CLI vì có thể kèm header hay session.
+    // Do not log raw errors from merchant/CLI as they may contain headers or session tokens.
     await record(settled ? 'settlement_reported_data_incomplete' : 'outcome_unknown_check_wallet');
     throw new Error(
       settled

@@ -6,12 +6,10 @@ import { Store } from '../store.js';
 import { money } from '../money.js';
 import { PaymentGateway, boundedJson } from '../payments/gateway.js';
 import { fixture } from '../services/fixtures.js';
-import { OpenRouterProvider } from './openrouter.js';
-import { GeminiProvider } from './gemini.js';
+import { GroqProvider } from './groq.js';
 import { MarketSearch, assetSymbol } from '../services/market-search.js';
 import {
   DemoProvider,
-  OpenAIProvider,
   toolsForServices,
   type Observation,
   type Provider,
@@ -73,29 +71,13 @@ export class AgentRunner {
       given ??
       (this.config.agentMode === 'demo'
         ? new DemoProvider(task, () => this.store.totals(task.id), this.services)
-        : this.config.agentMode === 'gemini'
-          ? new GeminiProvider(
-              task,
-              this.config.geminiKey,
-              this.config.model,
-              fetch,
-              toolsForServices(this.services, task.symbol === 'AUTO'),
-            )
-          : this.config.agentMode === 'openrouter'
-            ? new OpenRouterProvider(
-                task,
-                this.config.openrouterKey,
-                this.config.model,
-                fetch,
-                toolsForServices(this.services, task.symbol === 'AUTO'),
-              )
-            : new OpenAIProvider(
-                task,
-                this.config.openaiKey,
-                this.config.model,
-                fetch,
-                toolsForServices(this.services, task.symbol === 'AUTO'),
-              ));
+        : new GroqProvider(
+            task,
+            this.config.groqKey,
+            this.config.model,
+            fetch,
+            toolsForServices(this.services, task.symbol === 'AUTO'),
+          ));
     const observations: Observation[] = [];
     let callsCount = 0;
     const toolCache = new Map<string, unknown>();
